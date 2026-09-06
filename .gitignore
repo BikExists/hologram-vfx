@@ -1,0 +1,27 @@
+# Python & Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Bytecode & Caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs, temporary files, and dumps
+*.log
+*.tmp
+*.png
+!assets/*.png
+
+# Machine / OS / IDE specific
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
