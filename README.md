@@ -25,6 +25,12 @@ A high-performance real-time interactive computer vision application that tracks
   - **Multi-Camera Device Fallback**: Automatically tries alternative physical cameras if Camera 0 is absent or busy, gracefully falling back to procedural Synthetic mode if no hardware is available.
   - **Mid-Stream Disconnection Recovery**: Transparently recovers and transitions to synthetic feed if a physical USB webcam is disconnected while running.
   - **Seamless Camera Switching**: Switch input sources at runtime via key `[V]` or direct jump `[1-9]`.
+- **Universal Holographic Object System**:
+  - **1 → Energy Orb**: The reference holographic celestial sphere featuring multi-layer exponential radial glow, tri-axial rotating gyroscopic rings, Keplerian orbital sparkles, electric plasma tethers, and shockwaves.
+  - **2 → Cyber Cube**: A high-tech 3D rotating wireframe cube featuring perspective projection, glowing edges, 6 depth-sorted translucent faceted faces with scanlines, luminous vertex node beacons, 3D orbital particles, and pinch tethers.
+  - **3 → Holographic Planet**: A planetary body with atmospheric limb-darkening glow, rotating latitude bands and wireframe meridians, tilted concentric Saturn-like rings with depth-sorted front/back occlusion, and an orbiting moon with a particle dust trail.
+  - **Seamless State Transfer**: Preserves spatial position, velocity, openness scale, and theme when switching between objects at runtime.
+  - **Unified Object Contract**: Extensible base class ensuring all current and future holographic objects operate in unified pixel coordinates with full pinch-grab, spring physics, and openness scaling support.
 - **Multiple Color Themes**:
   - **Cyber Cyan** (Classic electric hologram)
   - **Solar Flare** (Warm golden amber star)
@@ -45,12 +51,19 @@ antigravity/
 │   ├── interaction.py      # OrbController state machine, spring-damper kinematics, boundaries
 │   ├── camera.py           # Cross-platform VideoCapture manager, selector, and SyntheticCamera
 │   ├── app.py              # Main HolographicVFXApp loop orchestrating all subsystems
+│   ├── objects/            # Extensible Universal Holographic Object System
+│   │   ├── __init__.py     # Module exports
+│   │   ├── base.py         # Common BaseHolographicObject contract in pixel coordinates
+│   │   ├── orb.py          # HolographicOrb (multi-layer glow, 3D rings, particles, tethers)
+│   │   ├── cube.py         # HolographicCube (3D rotation, wireframe edges, scanlines, faces)
+│   │   ├── planet.py       # HolographicPlanet (limb glow, bands, rings, orbiting moon)
+│   │   └── manager.py      # HolographicObjectManager & runtime object switcher
 │   └── vfx/
 │       ├── __init__.py
 │       ├── color_themes.py # 4 holographic color themes and palette definitions
 │       ├── particles.py    # 3D Keplerian orbital particles and burst physics
 │       ├── orb_renderer.py # Multi-layer exponential glow, rotating rings, tethers, shockwaves
-│       └── hud.py          # Sci-fi glass panels, FPS counter, openness gauge
+│       └── hud.py          # Sci-fi glass panels, FPS counter, openness gauge, object HUD
 ├── tests/
 │   ├── __init__.py
 │   ├── test_camera_robustness.py # Cross-platform backend, fallback, and disconnect tests
@@ -59,6 +72,7 @@ antigravity/
 │   ├── test_gestures.py    # Gesture math, pinch hysteresis, and openness tests
 │   ├── test_vfx.py         # VFX rendering, particles, color themes, and ROI clipping tests
 │   ├── test_interaction.py # Orb kinematics, grab/release states, and viewport boundaries
+│   ├── test_objects.py     # Holographic object contract, switching, and rendering tests
 │   └── test_integration.py # Headless end-to-end synthetic pipeline integration test
 ├── main.py                 # CLI entry point supporting live camera, synthetic, and benchmark modes
 ├── requirements.txt        # Frozen package dependencies
@@ -122,14 +136,15 @@ python main.py --benchmark 120 --synthetic --headless
 
 | Key / Gesture | Action |
 |---|---|
-| **Pinch (Thumb + Index)** | Grab and control the glowing orb |
-| **Move Hand** | Move the orb smoothly across the viewport |
-| **Open Hand** | Expand the orb's size up to maximum diameter |
-| **Close Hand (Fist)** | Shrink the orb down to a compact core |
+| **Pinch (Thumb + Index)** | Grab and control the active holographic object |
+| **Move Hand** | Move the object smoothly across the viewport |
+| **Open Hand** | Expand the object's size up to maximum diameter |
+| **Close Hand (Fist)** | Shrink the object down to a compact core |
+| **1 / 2 / 3** | Switch active object: `1 = Energy Orb`, `2 = Cyber Cube`, `3 = Planet` |
 | **V** | Cycle to the next available camera source |
-| **1-9** | Jump directly to camera device index 1-9 |
+| **4-9** | Jump directly to camera device index 4-9 |
 | **C** | Cycle color themes (Cyan $\rightarrow$ Solar $\rightarrow$ Violet $\rightarrow$ Matrix) |
-| **R** | Reset orb to the center of the screen |
+| **R** | Reset active object to the center of the screen |
 | **H** | Toggle holographic hand skeleton joints overlay |
 | **S** | Save high-resolution screenshot |
 | **Q / ESC** | Exit the application cleanly |

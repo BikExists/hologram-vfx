@@ -76,45 +76,55 @@ class HUD:
         hand_detected: bool = False,
         camera_name: Optional[str] = None,
         camera_notification: Optional[str] = None,
+        object_name: str = "Orb",
+        object_notification: Optional[str] = None,
     ) -> None:
         """Renders HUD overlay elements."""
         h, w = frame.shape[:2]
         accent = theme.hud_accent
 
-        # Top-Left: Performance Telemetry & Active Camera
-        panel_w = 195
-        panel_h = 58
+        # Top-Left: Performance Telemetry, Active Object & Camera
+        panel_w = 205
+        panel_h = 72
         self.draw_glass_rect(frame, 14, 14, panel_w, panel_h, accent, bg_alpha=0.5)
 
         fps_text = f"FPS: {fps:5.1f} ({frame_time_ms:4.1f}ms)"
         cv2.putText(
-            frame, fps_text, (24, 30),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.40, (255, 255, 255), 1, cv2.LINE_AA
+            frame, fps_text, (24, 29),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.38, (255, 255, 255), 1, cv2.LINE_AA
         )
 
         # Status badge
         status_color = (0, 255, 120) if is_grabbed else (accent if hand_detected else (100, 100, 100))
         cv2.putText(
-            frame, f"STATUS: {state_label}", (24, 45),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.36, status_color, 1, cv2.LINE_AA
+            frame, f"STATUS: {state_label}", (24, 43),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.34, status_color, 1, cv2.LINE_AA
+        )
+
+        # Object indicator
+        obj_display = (object_name or "Orb").upper()
+        cv2.putText(
+            frame, f"OBJ: {obj_display} [1-3]", (24, 57),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.34, (255, 230, 140), 1, cv2.LINE_AA
         )
 
         # Camera source indicator
         cam_display = camera_name or "Camera 0"
         cv2.putText(
-            frame, f"CAM: {cam_display} [V]", (24, 60),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.36, (200, 230, 255), 1, cv2.LINE_AA
+            frame, f"CAM: {cam_display} [V]", (24, 71),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.34, (200, 230, 255), 1, cv2.LINE_AA
         )
 
-        # Top-Center: Transient Camera Switch Notification (if active)
-        if camera_notification:
-            notif_w = min(w - 28, 290)
+        # Top-Center: Transient Notification (Object switch or Camera switch)
+        active_notif = object_notification or camera_notification
+        if active_notif:
+            notif_w = min(w - 28, 310)
             notif_h = 28
             nx = (w - notif_w) // 2
             ny = 14
             self.draw_glass_rect(frame, nx, ny, notif_w, notif_h, accent, bg_alpha=0.7)
             cv2.putText(
-                frame, camera_notification, (nx + 12, ny + 19),
+                frame, active_notif, (nx + 12, ny + 19),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.38, (255, 255, 255), 1, cv2.LINE_AA
             )
 
@@ -150,15 +160,14 @@ class HUD:
 
         # Bottom Bar: Controls Legend
         if self.show_help:
-            help_w = min(w - 28, 590)
+            help_w = min(w - 28, 620)
             help_h = 26
             hx = (w - help_w) // 2
             hy = h - help_h - 10
             self.draw_glass_rect(frame, hx, hy, help_w, help_h, accent, bg_alpha=0.6)
 
-            cam_short = (cam_display[:12] + "...") if len(cam_display) > 14 else cam_display
-            controls_str = f"THEME [C]  |  CAM: {cam_short} [V]  |  RESET [R]  |  SKELETON [H]  |  EXIT [Q/ESC]"
+            controls_str = f"OBJ: 1=ORB 2=CUBE 3=PLANET  |  THEME [C]  |  CAM [V]  |  RESET [R]  |  EXIT [Q]"
             cv2.putText(
                 frame, controls_str, (hx + 10, hy + 17),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.36, (220, 240, 255), 1, cv2.LINE_AA
+                cv2.FONT_HERSHEY_SIMPLEX, 0.35, (220, 240, 255), 1, cv2.LINE_AA
             )

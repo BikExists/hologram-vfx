@@ -76,5 +76,11 @@ THEME_KEYS: List[str] = list(THEMES.keys())
 
 
 def get_theme(name: str) -> ColorTheme:
-    """Returns theme by key or defaults to 'cyan'."""
-    return THEMES.get(name.lower(), THEMES["cyan"])
+    """Returns theme by key or display name, or defaults to 'cyan'."""
+    query = str(name).strip().lower()
+    if query in THEMES:
+        return THEMES[query]
+    for theme in THEMES.values():
+        if theme.name.lower() == query:
+            return theme
+    return THEMES["cyan"]

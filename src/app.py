@@ -11,10 +11,9 @@ import numpy as np
 
 from src.camera import CameraSelector, CameraDeviceInfo
 from src.hand_tracker import HandTracker, HandData
-from src.interaction import OrbController
+from src.objects import HolographicObjectManager, BaseHolographicObject
 from src.vfx.color_themes import THEME_KEYS, get_theme
 from src.vfx.hud import HUD
-from src.vfx.orb_renderer import OrbRenderer
 
 
 class HolographicVFXApp:
@@ -47,15 +46,16 @@ class HolographicVFXApp:
         self.camera = self.camera_selector
 
         self.tracker = HandTracker()
-        self.renderer = OrbRenderer(theme_name=theme_name)
         self.hud = HUD()
 
-        # Wire up shockwave triggers to orb events
-        self.orb = OrbController(
+        # Universal holographic object management system (Orb=1, Cube=2, Planet=3)
+        self.object_manager = HolographicObjectManager(
             frame_width=width,
             frame_height=height,
-            on_grab=self._on_orb_grabbed,
-            on_release=self._on_orb_released,
+            theme_name=theme_name,
+            initial_object_id=1,
+            on_grab=self._on_object_grabbed,
+            on_release=self._on_object_released,
         )
 
         # Theme cycling
@@ -69,19 +69,39 @@ class HolographicVFXApp:
 
         self.running: bool = False
 
-    def _on_orb_grabbed(self, x: float, y: float, r: float) -> None:
-        """Triggered when user pinches and grabs the orb."""
-        self.renderer.trigger_shockwave(x, y, r)
+    @property
+    def active_object(self) -> BaseHolographicObject:
+        """Currently active holographic object."""
+        return self.object_manager.get_active_object()
 
-    def _on_orb_released(self, x: float, y: float, r: float) -> None:
+    @property
+    def orb(self):
+        """Backward compatibility property returning the active holographic object."""
+        return self.object_manager.get_active_object()
+
+    @property
+    def renderer(self):
+        """Backward compatibility property exposing active object renderer."""
+        obj = self.object_manager.get_active_object()
+        return getattr(obj, "renderer", obj)
+
+    def _on_object_grabbed(self, x: float, y: float, r: float) -> None:
+        """Triggered when user pinches and grabs the active object."""
+        self.active_object.trigger_shockwave(x, y, r)
+
+    def _on_object_released(self, x: float, y: float, r: float) -> None:
         """Triggered when user releases the grab."""
-        self.renderer.trigger_shockwave(x, y, r)
+        self.active_object.trigger_shockwave(x, y, r)
+
+    def select_object(self, object_id: int) -> Tuple[bool, str]:
+        """Switches between Holographic Objects (1=Orb, 2=Cube, 3=Planet)."""
+        return self.object_manager.select_object(object_id)
 
     def cycle_theme(self) -> str:
         """Cycles to the next available color theme."""
         self.theme_idx = (self.theme_idx + 1) % len(THEME_KEYS)
         theme_key = THEME_KEYS[self.theme_idx]
-        self.renderer.set_theme(theme_key)
+        self.object_manager.set_theme(theme_key)
         return theme_key
 
     def switch_camera(self) -> Tuple[bool, str]:
@@ -102,9 +122,7 @@ class HolographicVFXApp:
         if w != self.width or h != self.height:
             self.width = w
             self.height = h
-            self.orb.resize_viewport(w, h)
-            self.orb.rest_x = w * 0.5
-            self.orb.rest_y = h * 0.5
+            self.object_manager.resize_viewport(w, h)
 
         now = time.perf_counter()
         dt = max(0.001, min(0.1, now - self._prev_frame_time))
@@ -122,56 +140,65 @@ class HolographicVFXApp:
         hand_data: Optional[HandData] = self.tracker.process_frame(frame, timestamp=now)
         hand_detected = hand_data is not None
 
-        # 3. Update Orb Physics and State Machine
-        orb_x, orb_y, orb_radius = self.orb.update(hand_data, dt=dt)
+        # 3. Update Active Holographic Object Kinematics
+        obj = self.active_object
+        obj_x, obj_y, obj_radius = obj.update(hand_data, dt=dt)
 
         # 4. Render Holographic Landmarks (if toggled)
         if hand_detected and self.hud.show_landmarks:
-            self.tracker.draw_holographic_landmarks(frame, hand_data, self.renderer.theme.ring_primary)
+            self.tracker.draw_holographic_landmarks(frame, hand_data, obj.theme.ring_primary)
 
-        # 5. Render Holographic VFX Stack
+        # 5. Render Active Holographic Object VFX Stack
         pinch_pt = hand_data.pinch_point_px if hand_detected else None
-        self.renderer.render(
+        obj.render(
             frame=frame,
-            center=(orb_x, orb_y),
-            radius=orb_radius,
-            is_grabbed=self.orb.is_grabbed,
             pinch_pt=pinch_pt,
             dt=dt,
         )
 
         # 6. Render Sci-Fi HUD Overlay
-        state_str = self.orb.get_state_label(hand_detected)
+        state_str = obj.get_state_label(hand_detected)
         openness_val = hand_data.openness if hand_detected else None
         is_pinching = hand_data.is_pinching if hand_detected else False
 
-        # Active camera name & notification
+        # Active camera and object switch notifications
         cur_dev = self.camera_selector.get_current_device()
-        notif_msg = None
+        cam_notif = None
         if self.camera_selector.status_message and (now - self.camera_selector.status_message_time) < 2.5:
-            notif_msg = self.camera_selector.status_message
+            cam_notif = self.camera_selector.status_message
+
+        obj_notif = None
+        if self.object_manager.status_message and (now - self.object_manager.status_message_time) < 2.5:
+            obj_notif = self.object_manager.status_message
 
         self.hud.render(
             frame=frame,
             fps=self.fps,
             frame_time_ms=self.frame_time_ms,
-            theme=self.renderer.theme,
+            theme=obj.theme,
             state_label=state_str,
             openness=openness_val,
             is_pinching=is_pinching,
-            is_grabbed=self.orb.is_grabbed,
+            is_grabbed=obj.is_grabbed,
             hand_detected=hand_detected,
             camera_name=cur_dev.name,
-            camera_notification=notif_msg,
+            camera_notification=cam_notif,
+            object_name=obj.name,
+            object_notification=obj_notif,
         )
 
         telemetry = {
             "fps": self.fps,
             "frame_time_ms": self.frame_time_ms,
-            "orb_x": orb_x,
-            "orb_y": orb_y,
-            "orb_radius": orb_radius,
-            "is_grabbed": self.orb.is_grabbed,
+            "object_type": obj.name,
+            "object_x": obj_x,
+            "object_y": obj_y,
+            "object_radius": obj_radius,
+            # Backward compatibility keys:
+            "orb_x": obj_x,
+            "orb_y": obj_y,
+            "orb_radius": obj_radius,
+            "is_grabbed": obj.is_grabbed,
             "hand_detected": hand_detected,
             "openness": openness_val,
             "camera_id": cur_dev.device_id,
@@ -227,15 +254,19 @@ class HolographicVFXApp:
                         _, msg = self.switch_camera()
                         print(f"[Info] {msg}")
                     elif key in (ord("r"), ord("R")):
-                        self.orb.reset_position()
-                        print("[Info] Reset orb position.")
+                        self.active_object.reset_position()
+                        print(f"[Info] Reset {self.active_object.name} position.")
                     elif key in (ord("h"), ord("H")):
                         self.hud.toggle_landmarks()
                     elif key in (ord("s"), ord("S")):
                         filename = f"hologram_capture_{int(time.time())}.png"
                         cv2.imwrite(filename, frame)
                         print(f"[Info] Screenshot saved: {filename}")
-                    elif ord("1") <= key <= ord("9"):
+                    elif ord("1") <= key <= ord("3"):
+                        target_obj_id = key - ord("0")
+                        _, msg = self.select_object(target_obj_id)
+                        print(f"[Info] {msg}")
+                    elif ord("4") <= key <= ord("9"):
                         target_index = key - ord("1")
                         if target_index < len(self.camera_selector.devices):
                             _, msg = self.camera_selector.select_device_by_index(target_index)

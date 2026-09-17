@@ -7,7 +7,7 @@ electric plasma pinch tethers, shockwaves, and subtle scanline interference.
 import math
 import random
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 import cv2
 import numpy as np
 
@@ -59,9 +59,12 @@ class OrbRenderer:
         # Cached glow masks: key = rounded integer radius
         self._glow_cache: Dict[int, Tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
 
-    def set_theme(self, theme_name: str) -> None:
+    def set_theme(self, theme_or_name: Union[str, ColorTheme]) -> None:
         """Switch color theme."""
-        self.theme = get_theme(theme_name)
+        if isinstance(theme_or_name, ColorTheme):
+            self.theme = theme_or_name
+        else:
+            self.theme = get_theme(str(theme_or_name))
 
     def trigger_shockwave(self, cx: float, cy: float, radius: float) -> None:
         """Triggers a ripple shockwave at the given position."""
