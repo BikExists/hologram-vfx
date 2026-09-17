@@ -116,17 +116,35 @@ python main.py --theme violet
 python main.py --theme matrix
 ```
 
-### 2. Synthetic Test Mode (No Webcam Required)
+### 2. Camera Discovery & Validation
+By default, automated probing and tests discover **native physical cameras** and the **Synthetic Feed**, excluding virtual software devices (e.g. Phone Link, OBS, NVIDIA Broadcast) to guarantee fast startup and test stability without third-party virtual drivers:
+
+```bash
+# List native physical cameras and synthetic feed:
+python main.py --list-cameras
+
+# Include software / virtual cameras if needed:
+python main.py --list-cameras --include-virtual
+
+# Manually select a specific camera by ID (physical or virtual):
+python main.py --camera-id 1
+```
+
+### 3. Synthetic Test Mode (No Webcam Required)
 To run the full visual application without needing a webcam:
 
 ```bash
 python main.py --synthetic --theme cyan
 ```
 
-### 3. Automated Performance Benchmark Mode
+### 4. Automated Performance Benchmark Mode
 Runs for $N$ frames, records average FPS and min/max frame latencies, and cleanly exits:
 
 ```bash
+# Physical native camera benchmark:
+python main.py --benchmark 120 --headless
+
+# Synthetic feed benchmark:
 python main.py --benchmark 120 --synthetic --headless
 ```
 

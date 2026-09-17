@@ -28,6 +28,7 @@ class HolographicVFXApp:
         synthetic_mode: bool = False,
         headless: bool = False,
         available_cameras: Optional[list] = None,
+        include_virtual: bool = False,
     ):
         self.width = width
         self.height = height
@@ -41,6 +42,7 @@ class HolographicVFXApp:
             height=height,
             synthetic_mode=synthetic_mode,
             available_devices=available_cameras,
+            include_virtual=include_virtual,
         )
         # Expose self.camera for backward compatibility
         self.camera = self.camera_selector

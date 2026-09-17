@@ -63,6 +63,11 @@ def parse_args():
         help="Run without GUI window (for benchmarking or automated environments)",
     )
     parser.add_argument(
+        "--include-virtual",
+        action="store_true",
+        help="Include virtual/software cameras in device detection and listing",
+    )
+    parser.add_argument(
         "--benchmark",
         type=int,
         default=None,
@@ -84,11 +89,20 @@ def main():
 
     if args.list_cameras:
         print("\nScanning for available video devices...")
-        devices = detect_available_cameras(max_devices=6, include_synthetic=True)
+        devices = detect_available_cameras(
+            max_devices=6,
+            include_synthetic=True,
+            include_virtual=args.include_virtual,
+        )
         print(f"Found {len(devices)} device(s):")
         for i, dev in enumerate(devices):
-            tag = "[Synthetic]" if dev.is_synthetic else f"[Device ID: {dev.device_id}]"
-            print(f"  [{i + 1}] {dev.name:<25} {tag}")
+            if dev.is_synthetic:
+                tag = "[Synthetic]"
+            elif getattr(dev, "is_physical", True):
+                tag = f"[Physical, Device ID: {dev.device_id}]"
+            else:
+                tag = f"[Virtual, Device ID: {dev.device_id}]"
+            print(f"  [{i + 1}] {dev.name:<32} {tag}")
         sys.exit(0)
 
     print("=" * 60)
@@ -120,6 +134,7 @@ def main():
         theme_name=args.theme,
         synthetic_mode=args.synthetic,
         headless=args.headless,
+        include_virtual=args.include_virtual,
     )
 
     if args.benchmark:

@@ -236,3 +236,140 @@ def test_dynamic_resolution_adaptation():
     assert telemetry["width"] == 1280
     assert telemetry["height"] == 720
     app.close()
+
+
+def test_platform_camera_classification(monkeypatch):
+    """Verifies that platform camera inspection accurately detects and classifies physical vs virtual devices."""
+    from src.camera import (
+        inspect_platform_cameras,
+        inspect_windows_camera_devices,
+        inspect_linux_camera_devices,
+    )
+
+    # 1. Native platform inspection should return a list without error
+    plat_cams = inspect_platform_cameras()
+    assert isinstance(plat_cams, list)
+    for cam in plat_cams:
+        assert "name" in cam
+        assert "is_physical" in cam
+        assert isinstance(cam["is_physical"], bool)
+
+    # 2. Test Linux /sys/class/video4linux classification logic
+    import os
+
+    def fake_exists(path):
+        if path == "/sys/class/video4linux":
+            return True
+        if "name" in path:
+            return True
+        return False
+
+    def fake_listdir(path):
+        if path == "/sys/class/video4linux":
+            return ["video0", "video1", "video2"]
+        return []
+
+    def fake_islink(path):
+        return True
+
+    def fake_realpath(path):
+        if "video0" in path:
+            return "/sys/devices/pci0000:00/0000:00:14.0/usb1/1-3/1-3:1.0/video4linux/video0"
+        if "video1" in path:
+            return "/sys/devices/virtual/video4linux/video1"
+        return "/sys/devices/virtual/v4l2loopback/video2"
+
+    import builtins
+    orig_open = builtins.open
+
+    def fake_open(file, *args, **kwargs):
+        class FakeFile:
+            def __init__(self, content):
+                self.content = content
+            def read(self):
+                return self.content
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                pass
+
+        if "video0" in str(file):
+            return FakeFile("Integrated Webcam\n")
+        if "video1" in str(file):
+            return FakeFile("OBS Virtual Camera\n")
+        if "video2" in str(file):
+            return FakeFile("v4l2loopback Device\n")
+        return orig_open(file, *args, **kwargs)
+
+    monkeypatch.setattr(os.path, "exists", fake_exists)
+    monkeypatch.setattr(os, "listdir", fake_listdir)
+    monkeypatch.setattr(os.path, "islink", fake_islink)
+    monkeypatch.setattr(os.path, "realpath", fake_realpath)
+    monkeypatch.setattr(builtins, "open", fake_open)
+
+    linux_cams = inspect_linux_camera_devices()
+    assert len(linux_cams) == 3
+    # video0 is USB -> physical
+    assert linux_cams[0]["is_physical"] is True
+    assert "Integrated Webcam" in linux_cams[0]["name"]
+    # video1 has "OBS Virtual Camera" -> virtual
+    assert linux_cams[1]["is_physical"] is False
+    # video2 is virtual/loopback -> virtual
+    assert linux_cams[2]["is_physical"] is False
+
+
+def test_camera_fallback_skips_virtual_devices():
+    """Verifies that CameraSelector automatic fallback skips virtual devices and only tries physical devices."""
+    devices = [
+        CameraDeviceInfo(device_id=0, name="Camera 0 (Physical, Broken)", is_physical=True, is_synthetic=False),
+        CameraDeviceInfo(device_id=1, name="Phone Link (Virtual)", is_physical=False, is_synthetic=False),
+        CameraDeviceInfo(device_id=2, name="Camera 2 (Physical, Working)", is_physical=True, is_synthetic=False),
+        CameraDeviceInfo(device_id=-1, name="Synthetic Feed", is_physical=False, is_synthetic=True),
+    ]
+
+    attempted_opens = []
+
+    class TrackedCameraManager(BaseCameraSource):
+        def __init__(self, camera_id: int, *args, **kwargs):
+            self.camera_id = camera_id
+            self._is_opened = False
+            self.actual_w = 640
+            self.actual_h = 480
+            self.actual_fps = 30
+
+        def open(self) -> bool:
+            attempted_opens.append(self.camera_id)
+            if self.camera_id == 0:
+                self._is_opened = False
+                return False
+            if self.camera_id == 2:
+                self._is_opened = True
+                return True
+            return False
+
+        def read_frame(self):
+            if not self._is_opened:
+                return False, None
+            return True, np.zeros((480, 640, 3), dtype=np.uint8)
+
+        def is_opened(self):
+            return self._is_opened
+
+        def release(self):
+            self._is_opened = False
+
+    import src.camera
+    orig_cm = src.camera.CameraManager
+    src.camera.CameraManager = TrackedCameraManager
+    try:
+        selector = CameraSelector(available_devices=devices)
+        ok = selector.open()
+        assert ok is True
+        # Selector should have tried 0, skipped virtual device 1, and opened physical device 2
+        assert attempted_opens == [0, 2]
+        assert selector.get_current_device().device_id == 2
+        assert selector.get_current_device().is_physical is True
+    finally:
+        src.camera.CameraManager = orig_cm
+        selector.release()
+

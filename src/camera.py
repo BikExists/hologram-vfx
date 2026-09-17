@@ -11,7 +11,7 @@ from dataclasses import dataclass
 import math
 import sys
 import time
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
@@ -58,65 +58,298 @@ class CameraDeviceInfo:
     device_id: int  # 0, 1, 2... or -1 for synthetic
     name: str  # Human-readable name
     is_synthetic: bool = False
+    is_physical: bool = True  # True for native physical hardware, False for virtual/software devices
+
+
+VIRTUAL_CAMERA_KEYWORDS = (
+    "virtual",
+    "phone link",
+    "obs",
+    "broadcast",
+    "droidcam",
+    "manycam",
+    "epoccam",
+    "xsplit",
+    "iriun",
+    "snap camera",
+    "vcam",
+    "camo",
+    "loopback",
+    "software device",
+    "generic software",
+)
+
+
+def inspect_windows_camera_devices() -> List[Dict[str, Any]]:
+    """Inspects Windows PnP and DirectShow registry to classify physical vs virtual cameras."""
+    results: List[Dict[str, Any]] = []
+    try:
+        import winreg
+    except ImportError:
+        return results
+
+    # 1. PnP Video Cameras from DeviceClasses (KSCATEGORY_VIDEO_CAMERA)
+    guid_video = r"SYSTEM\CurrentControlSet\Control\DeviceClasses\{e5323777-f976-4f5b-9b55-b94699c46e44}"
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, guid_video) as k:
+            n_sub, _, _ = winreg.QueryInfoKey(k)
+            for i in range(n_sub):
+                sub_name = winreg.EnumKey(k, i)
+                if not sub_name.startswith("##?#"):
+                    continue
+
+                raw_id = sub_name[4:].split("#{")[0].replace("#", "\\")
+                raw_upper = raw_id.upper()
+                is_software_bus = (
+                    raw_upper.startswith("SWD")
+                    or raw_upper.startswith("ROOT")
+                    or "VCAM" in raw_upper
+                )
+
+                name = ""
+                enum_path = f"SYSTEM\\CurrentControlSet\\Enum\\{raw_id}"
+                try:
+                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, enum_path) as ek:
+                        num_v, _, _ = winreg.QueryInfoKey(ek)
+                        for v in range(num_v):
+                            vn, vv, _ = winreg.EnumValue(ek, v)
+                            if vn == "FriendlyName":
+                                name = vv
+                                break
+                            elif vn == "DeviceDesc" and not name:
+                                name = vv.split(";")[-1] if ";" in vv else vv
+                except Exception:
+                    pass
+
+                if not name:
+                    name = "Camera" if not is_software_bus else "Virtual Camera"
+
+                name_lower = name.lower()
+                is_virtual_by_name = any(kw in name_lower for kw in VIRTUAL_CAMERA_KEYWORDS)
+                is_physical = (not is_software_bus) and (not is_virtual_by_name)
+
+                results.append({
+                    "name": name,
+                    "bus_id": raw_id,
+                    "is_physical": is_physical,
+                })
+    except Exception:
+        pass
+
+    # 2. DirectShow Software Filters (HKCR CLSID\{860BB310-5D01-11d0-BD3B-00A0C911CE86}\Instance)
+    dshow_path = r"CLSID\{860BB310-5D01-11d0-BD3B-00A0C911CE86}\Instance"
+    try:
+        with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, dshow_path) as k:
+            n_sub, _, _ = winreg.QueryInfoKey(k)
+            for i in range(n_sub):
+                sub_name = winreg.EnumKey(k, i)
+                try:
+                    with winreg.OpenKey(k, sub_name) as subk:
+                        fname = ""
+                        try:
+                            fname, _ = winreg.QueryValueEx(subk, "FriendlyName")
+                        except Exception:
+                            fname = sub_name
+                        dpath = ""
+                        try:
+                            dpath, _ = winreg.QueryValueEx(subk, "DevicePath")
+                        except Exception:
+                            dpath = ""
+
+                        dpath_lower = dpath.lower()
+                        is_phys = bool(
+                            dpath
+                            and (
+                                dpath_lower.startswith(r"\\?\usb")
+                                or dpath_lower.startswith(r"\\?\pci")
+                                or dpath_lower.startswith(r"\\?\acpi")
+                            )
+                        )
+                        if any(kw in fname.lower() for kw in VIRTUAL_CAMERA_KEYWORDS):
+                            is_phys = False
+
+                        results.append({
+                            "name": fname,
+                            "bus_id": dpath or sub_name,
+                            "is_physical": is_phys,
+                        })
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    return results
+
+
+def inspect_linux_camera_devices() -> List[Dict[str, Any]]:
+    """Inspects Linux /sys/class/video4linux to classify physical vs virtual v4l2 cameras."""
+    import os
+    results: List[Dict[str, Any]] = []
+    base = "/sys/class/video4linux"
+    if not os.path.exists(base):
+        return results
+    try:
+        for node in sorted(os.listdir(base)):
+            node_path = os.path.join(base, node)
+            name_file = os.path.join(node_path, "name")
+            name = node
+            if os.path.exists(name_file):
+                try:
+                    with open(name_file, "r") as f:
+                        name = f.read().strip()
+                except Exception:
+                    pass
+            dev_link = os.path.join(node_path, "device")
+            is_physical = False
+            if os.path.islink(dev_link):
+                try:
+                    target = os.path.realpath(dev_link)
+                    is_physical = ("usb" in target or "pci" in target) and ("loopback" not in name.lower())
+                except Exception:
+                    is_physical = False
+            if any(kw in name.lower() for kw in VIRTUAL_CAMERA_KEYWORDS):
+                is_physical = False
+            results.append({"name": name, "bus_id": node, "is_physical": is_physical})
+    except Exception:
+        pass
+    return results
+
+
+def inspect_platform_cameras() -> List[Dict[str, Any]]:
+    """Returns detected camera metadata across operating systems."""
+    if sys.platform.startswith("win"):
+        return inspect_windows_camera_devices()
+    elif sys.platform.startswith("linux"):
+        return inspect_linux_camera_devices()
+    return []
 
 
 def detect_available_cameras(
     max_devices: int = 4,
     include_synthetic: bool = True,
+    include_virtual: bool = False,
 ) -> List[CameraDeviceInfo]:
     """Probes available video devices up to max_devices with platform-optimal backends.
 
-    Avoids unnecessary long startup delays by terminating probing early when consecutive
-    device indices fail to open beyond index 0.
+    By default (include_virtual=False), only native physical cameras and Synthetic Feed
+    are returned. Virtual software devices (such as Phone Link, OBS Virtual Camera,
+    and NVIDIA Broadcast) are excluded from automated validation and test targets.
     """
     devices: List[CameraDeviceInfo] = []
     preferred_backend = get_preferred_backend()
+
+    # 1. Query platform device metadata to identify physical vs virtual devices
+    platform_meta = inspect_platform_cameras()
+    phys_meta = [m for m in platform_meta if m.get("is_physical")]
+    virt_meta = [m for m in platform_meta if not m.get("is_physical")]
+
     consecutive_probe_failures = 0
 
-    for idx in range(max_devices):
-        cap = None
-        if preferred_backend != cv2.CAP_ANY:
-            try:
-                cap = cv2.VideoCapture(idx, preferred_backend)
-            except Exception:
-                cap = None
+    if phys_meta:
+        # Platform provided physical metadata: probe only physical device indices
+        num_to_probe = min(len(phys_meta), max_devices)
+        for idx in range(num_to_probe):
+            cap = None
+            if preferred_backend != cv2.CAP_ANY:
+                try:
+                    cap = cv2.VideoCapture(idx, preferred_backend)
+                except Exception:
+                    cap = None
 
-        if cap is None or not cap.isOpened():
-            try:
-                cap = cv2.VideoCapture(idx, cv2.CAP_ANY)
-            except Exception:
-                cap = None
+            if cap is None or not cap.isOpened():
+                try:
+                    cap = cv2.VideoCapture(idx, cv2.CAP_ANY)
+                except Exception:
+                    cap = None
 
-        opened = False
-        if cap is not None and cap.isOpened():
-            try:
-                ret, frame = cap.read()
-                if ret and frame is not None:
-                    opened = True
-                    name = f"Camera {idx}" + (" (Default)" if idx == 0 else "")
-                    devices.append(CameraDeviceInfo(device_id=idx, name=name, is_synthetic=False))
-            except Exception:
-                pass
-            finally:
-                cap.release()
+            if cap is not None and cap.isOpened():
+                try:
+                    ret, frame = cap.read()
+                    if ret and frame is not None:
+                        base_name = phys_meta[idx]["name"]
+                        dname = base_name + (" (Default)" if idx == 0 else "")
+                        devices.append(
+                            CameraDeviceInfo(
+                                device_id=idx,
+                                name=dname,
+                                is_synthetic=False,
+                                is_physical=True,
+                            )
+                        )
+                except Exception:
+                    pass
+                finally:
+                    cap.release()
+    else:
+        # Fallback probe loop when platform metadata is unavailable
+        for idx in range(max_devices):
+            cap = None
+            if preferred_backend != cv2.CAP_ANY:
+                try:
+                    cap = cv2.VideoCapture(idx, preferred_backend)
+                except Exception:
+                    cap = None
 
-        if opened:
-            consecutive_probe_failures = 0
-        else:
-            consecutive_probe_failures += 1
-            # If 2 consecutive indices fail beyond index 0, stop probing to avoid startup delays
-            if idx >= 1 and consecutive_probe_failures >= 2:
-                break
+            if cap is None or not cap.isOpened():
+                try:
+                    cap = cv2.VideoCapture(idx, cv2.CAP_ANY)
+                except Exception:
+                    cap = None
 
-    # If no physical camera was detected and synthetic is not requested, keep Camera 0 placeholder
+            opened = False
+            if cap is not None and cap.isOpened():
+                try:
+                    ret, frame = cap.read()
+                    if ret and frame is not None:
+                        opened = True
+                        name = f"Camera {idx}" + (" (Default)" if idx == 0 else "")
+                        is_virt = any(kw in name.lower() for kw in VIRTUAL_CAMERA_KEYWORDS)
+                        if not is_virt or include_virtual:
+                            devices.append(
+                                CameraDeviceInfo(
+                                    device_id=idx,
+                                    name=name,
+                                    is_synthetic=False,
+                                    is_physical=not is_virt,
+                                )
+                            )
+                except Exception:
+                    pass
+                finally:
+                    cap.release()
+
+            if opened:
+                consecutive_probe_failures = 0
+            else:
+                consecutive_probe_failures += 1
+                if idx >= 1 and consecutive_probe_failures >= 2:
+                    break
+
+    # 2. If virtual cameras are explicitly requested, append detected virtual devices
+    if include_virtual and virt_meta:
+        start_virt_idx = len(devices)
+        for v_offset, v in enumerate(virt_meta):
+            vid = start_virt_idx + v_offset
+            vname = f"{v['name']} (Virtual)"
+            devices.append(
+                CameraDeviceInfo(
+                    device_id=vid,
+                    name=vname,
+                    is_synthetic=False,
+                    is_physical=False,
+                )
+            )
+
+    # 3. If no physical camera was detected and synthetic is not requested, keep Camera 0 placeholder
     if not devices and not include_synthetic:
-        devices.append(CameraDeviceInfo(device_id=0, name="Camera 0", is_synthetic=False))
+        devices.append(CameraDeviceInfo(device_id=0, name="Camera 0", is_synthetic=False, is_physical=True))
 
-    # Append synthetic feed as a selectable alternative source
+    # 4. Append synthetic feed as a selectable alternative source
     if include_synthetic:
-        devices.append(CameraDeviceInfo(device_id=-1, name="Synthetic Feed", is_synthetic=True))
+        devices.append(CameraDeviceInfo(device_id=-1, name="Synthetic Feed", is_synthetic=True, is_physical=False))
 
     return devices
+
 
 
 class CameraManager(BaseCameraSource):
@@ -285,6 +518,7 @@ class CameraSelector:
         height: int = 480,
         synthetic_mode: bool = False,
         available_devices: Optional[List[CameraDeviceInfo]] = None,
+        include_virtual: bool = False,
     ):
         self.width = width
         self.height = height
@@ -293,11 +527,15 @@ class CameraSelector:
         if available_devices is not None:
             self.devices = list(available_devices)
         else:
-            self.devices = detect_available_cameras(max_devices=4, include_synthetic=True)
+            self.devices = detect_available_cameras(
+                max_devices=4,
+                include_synthetic=True,
+                include_virtual=include_virtual,
+            )
 
         if not self.devices:
             # Absolute fallback
-            self.devices = [CameraDeviceInfo(device_id=-1, name="Synthetic Feed", is_synthetic=True)]
+            self.devices = [CameraDeviceInfo(device_id=-1, name="Synthetic Feed", is_synthetic=True, is_physical=False)]
 
         # Determine initial active device index
         self.current_idx = 0
@@ -314,23 +552,40 @@ class CameraSelector:
                     found = True
                     break
             if not found:
-                # If requested camera ID not found, default to first physical if available, else synthetic
-                for i, dev in enumerate(self.devices):
-                    if not dev.is_synthetic:
-                        self.current_idx = i
-                        break
+                # User explicitly requested an ID not present in detected physical devices.
+                # Keep virtual cameras manually usable by inserting requested device.
+                manual_dev = CameraDeviceInfo(
+                    device_id=initial_camera_id,
+                    name=f"Camera {initial_camera_id}",
+                    is_synthetic=False,
+                    is_physical=False,
+                )
+                self.devices.insert(0, manual_dev)
+                self.current_idx = 0
         else:
-            # initial_camera_id == 0: prefer physical Camera 0 if present, else first available physical
-            first_phys = None
+            # initial_camera_id == 0: prefer default native physical camera (device_id == 0 and is_physical),
+            # then first available physical camera, then synthetic feed
+            preferred_idx = None
+            first_phys_idx = None
+            first_synth_idx = None
             for i, dev in enumerate(self.devices):
-                if not dev.is_synthetic:
+                if dev.is_synthetic:
+                    if first_synth_idx is None:
+                        first_synth_idx = i
+                elif getattr(dev, "is_physical", True):
                     if dev.device_id == 0:
-                        first_phys = i
+                        preferred_idx = i
                         break
-                    elif first_phys is None:
-                        first_phys = i
-            if first_phys is not None:
-                self.current_idx = first_phys
+                    elif first_phys_idx is None:
+                        first_phys_idx = i
+            if preferred_idx is not None:
+                self.current_idx = preferred_idx
+            elif first_phys_idx is not None:
+                self.current_idx = first_phys_idx
+            elif first_synth_idx is not None:
+                self.current_idx = first_synth_idx
+            else:
+                self.current_idx = 0
 
         self.active_source: Optional[BaseCameraSource] = None
         self.status_message: Optional[str] = None
@@ -395,7 +650,7 @@ class CameraSelector:
         # Physical camera failed: try other detected physical cameras if available
         print(f"[Warning] Failed to open {dev.name}. Checking other available cameras...")
         for i, alt_dev in enumerate(self.devices):
-            if i == self.current_idx or alt_dev.is_synthetic:
+            if i == self.current_idx or alt_dev.is_synthetic or not getattr(alt_dev, "is_physical", True):
                 continue
             alt_source = CameraManager(camera_id=alt_dev.device_id, width=self.width, height=self.height)
             if alt_source.open():
