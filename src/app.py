@@ -1,6 +1,6 @@
 """Main Application Engine for Hand-Tracked Holographic VFX.
 
-Orchestrates webcam capture, hand tracking, gesture estimation,
+Orchestrates webcam capture, device switching, hand tracking, gesture estimation,
 physics simulation, holographic rendering, and interactive UI.
 """
 
@@ -9,7 +9,7 @@ from typing import Optional, Tuple
 import cv2
 import numpy as np
 
-from src.camera import CameraManager, SyntheticCamera
+from src.camera import CameraSelector, CameraDeviceInfo
 from src.hand_tracker import HandTracker, HandData
 from src.interaction import OrbController
 from src.vfx.color_themes import THEME_KEYS, get_theme
@@ -28,17 +28,23 @@ class HolographicVFXApp:
         theme_name: str = "cyan",
         synthetic_mode: bool = False,
         headless: bool = False,
+        available_cameras: Optional[list] = None,
     ):
         self.width = width
         self.height = height
         self.synthetic_mode = synthetic_mode
         self.headless = headless
 
-        # Subsystems
-        if synthetic_mode:
-            self.camera = SyntheticCamera(width=width, height=height)
-        else:
-            self.camera = CameraManager(camera_id=camera_id, width=width, height=height)
+        # Camera selection subsystem
+        self.camera_selector = CameraSelector(
+            initial_camera_id=camera_id,
+            width=width,
+            height=height,
+            synthetic_mode=synthetic_mode,
+            available_devices=available_cameras,
+        )
+        # Expose self.camera for backward compatibility
+        self.camera = self.camera_selector
 
         self.tracker = HandTracker()
         self.renderer = OrbRenderer(theme_name=theme_name)
@@ -78,9 +84,13 @@ class HolographicVFXApp:
         self.renderer.set_theme(theme_key)
         return theme_key
 
+    def switch_camera(self) -> Tuple[bool, str]:
+        """Switches to the next detected camera device."""
+        return self.camera_selector.switch_to_next()
+
     def step_frame(self) -> Tuple[bool, Optional[np.ndarray], dict]:
         """Processes a single video frame and returns (success, rendered_frame, telemetry)."""
-        ret, frame = self.camera.read_frame()
+        ret, frame = self.camera_selector.read_frame()
         if not ret or frame is None:
             return False, None, {}
 
@@ -126,6 +136,12 @@ class HolographicVFXApp:
         openness_val = hand_data.openness if hand_detected else None
         is_pinching = hand_data.is_pinching if hand_detected else False
 
+        # Active camera name & notification
+        cur_dev = self.camera_selector.get_current_device()
+        notif_msg = None
+        if self.camera_selector.status_message and (now - self.camera_selector.status_message_time) < 2.5:
+            notif_msg = self.camera_selector.status_message
+
         self.hud.render(
             frame=frame,
             fps=self.fps,
@@ -136,6 +152,8 @@ class HolographicVFXApp:
             is_pinching=is_pinching,
             is_grabbed=self.orb.is_grabbed,
             hand_detected=hand_detected,
+            camera_name=cur_dev.name,
+            camera_notification=notif_msg,
         )
 
         telemetry = {
@@ -147,17 +165,17 @@ class HolographicVFXApp:
             "is_grabbed": self.orb.is_grabbed,
             "hand_detected": hand_detected,
             "openness": openness_val,
+            "camera_id": cur_dev.device_id,
+            "camera_name": cur_dev.name,
         }
 
         return True, frame, telemetry
 
     def run(self, max_frames: Optional[int] = None) -> None:
         """Starts the interactive application loop."""
-        if not self.synthetic_mode:
-            if not self.camera.open():
-                print(f"[Error] Failed to open camera ID {self.camera.camera_id}.")
-                print("[Info] Falling back to synthetic test feed...")
-                self.camera = SyntheticCamera(width=self.width, height=self.height)
+        if not self.camera_selector.open():
+            print("[Warning] Initial camera open failed. Falling back to synthetic...")
+            self.camera_selector.select_camera_by_id(-1)
 
         window_name = "Holographic VFX - Hand-Tracked Orb"
         if not self.headless:
@@ -188,6 +206,9 @@ class HolographicVFXApp:
                     elif key in (ord("c"), ord("C")):
                         new_theme = self.cycle_theme()
                         print(f"[Info] Switched theme to: {new_theme}")
+                    elif key in (ord("v"), ord("V")):
+                        _, msg = self.switch_camera()
+                        print(f"[Info] {msg}")
                     elif key in (ord("r"), ord("R")):
                         self.orb.reset_position()
                         print("[Info] Reset orb position.")
@@ -197,6 +218,11 @@ class HolographicVFXApp:
                         filename = f"hologram_capture_{int(time.time())}.png"
                         cv2.imwrite(filename, frame)
                         print(f"[Info] Screenshot saved: {filename}")
+                    elif ord("1") <= key <= ord("9"):
+                        target_index = key - ord("1")
+                        if target_index < len(self.camera_selector.devices):
+                            _, msg = self.camera_selector.select_device_by_index(target_index)
+                            print(f"[Info] {msg}")
 
                     # Handle window close [X] button
                     if cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1:
@@ -210,8 +236,8 @@ class HolographicVFXApp:
     def close(self) -> None:
         """Clean shutdown and resource release."""
         self.running = False
-        if hasattr(self, "camera") and self.camera is not None:
-            self.camera.release()
+        if hasattr(self, "camera_selector") and self.camera_selector is not None:
+            self.camera_selector.release()
         if hasattr(self, "tracker") and self.tracker is not None:
             self.tracker.close()
         if not self.headless:

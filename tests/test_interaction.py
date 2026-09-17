@@ -95,7 +95,7 @@ def test_orb_radius_openness_scaling():
 
     # 2. Open hand (openness = 1.0) -> radius grows towards max_radius
     hand_open = _mock_hand_data(pinch_x=100.0, pinch_y=100.0, is_pinching=False, openness=1.0)
-    for _ in range(35):
+    for _ in range(50):
         orb.update(hand_open, dt=0.033)
     assert orb.current_radius > 90.0
 

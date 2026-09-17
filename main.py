@@ -2,6 +2,7 @@
 
 Usage:
     python main.py
+    python main.py --list-cameras
     python main.py --camera-id 0 --theme cyan
     python main.py --synthetic --theme violet
     python main.py --benchmark 120 --headless
@@ -13,6 +14,7 @@ import time
 import cv2
 
 from src.app import HolographicVFXApp
+from src.camera import detect_available_cameras
 from src.vfx.color_themes import THEME_KEYS
 
 
@@ -25,6 +27,11 @@ def parse_args():
         type=int,
         default=0,
         help="Webcam device index (default: 0)",
+    )
+    parser.add_argument(
+        "--list-cameras",
+        action="store_true",
+        help="Detect and list available video input devices and exit",
     )
     parser.add_argument(
         "--width",
@@ -75,6 +82,15 @@ def parse_args():
 def main():
     args = parse_args()
 
+    if args.list_cameras:
+        print("\nScanning for available video devices...")
+        devices = detect_available_cameras(max_devices=6, include_synthetic=True)
+        print(f"Found {len(devices)} device(s):")
+        for i, dev in enumerate(devices):
+            tag = "[Synthetic]" if dev.is_synthetic else f"[Device ID: {dev.device_id}]"
+            print(f"  [{i + 1}] {dev.name:<25} {tag}")
+        sys.exit(0)
+
     print("=" * 60)
     print("  HAND-TRACKED HOLOGRAPHIC VFX SYSTEM")
     print("=" * 60)
@@ -88,6 +104,7 @@ def main():
     print(" Controls:")
     print("   [Pinch]     : Grab and move the holographic orb")
     print("   [Open/Close]: Expand / shrink orb size")
+    print("   [V] / [1-9] : Switch camera input source")
     print("   [C]         : Cycle color themes")
     print("   [R]         : Reset orb to center")
     print("   [H]         : Toggle skeleton joints overlay")
@@ -106,11 +123,8 @@ def main():
 
     if args.benchmark:
         print(f"[Benchmark] Running {args.benchmark} frames...")
-        if not args.synthetic:
-            if not app.camera.open():
-                print("[Benchmark] Webcam open failed, switching to synthetic...")
-                from src.camera import SyntheticCamera
-                app.camera = SyntheticCamera(width=args.width, height=args.height)
+        if not app.camera_selector.open():
+            print("[Benchmark] Initial camera open failed, using fallback...")
 
         start_t = time.perf_counter()
         latencies = []

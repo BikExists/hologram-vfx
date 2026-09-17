@@ -1,7 +1,8 @@
 """Sci-Fi Holographic Heads-Up Display (HUD).
 
 Renders real-time performance diagnostics (FPS, latency),
-tracking state badges, openness gauge bar, and keyboard shortcuts.
+tracking state badges, camera selector badge, openness gauge bar,
+and keyboard shortcuts.
 """
 
 from typing import Optional, Tuple
@@ -73,28 +74,49 @@ class HUD:
         is_pinching: bool = False,
         is_grabbed: bool = False,
         hand_detected: bool = False,
+        camera_name: Optional[str] = None,
+        camera_notification: Optional[str] = None,
     ) -> None:
         """Renders HUD overlay elements."""
         h, w = frame.shape[:2]
         accent = theme.hud_accent
 
-        # Top-Left: Performance Telemetry
-        panel_w = 175
-        panel_h = 44
+        # Top-Left: Performance Telemetry & Active Camera
+        panel_w = 195
+        panel_h = 58
         self.draw_glass_rect(frame, 14, 14, panel_w, panel_h, accent, bg_alpha=0.5)
 
         fps_text = f"FPS: {fps:5.1f} ({frame_time_ms:4.1f}ms)"
         cv2.putText(
-            frame, fps_text, (24, 34),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.44, (255, 255, 255), 1, cv2.LINE_AA
+            frame, fps_text, (24, 30),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.40, (255, 255, 255), 1, cv2.LINE_AA
         )
 
         # Status badge
         status_color = (0, 255, 120) if is_grabbed else (accent if hand_detected else (100, 100, 100))
         cv2.putText(
-            frame, f"STATUS: {state_label}", (24, 50),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.40, status_color, 1, cv2.LINE_AA
+            frame, f"STATUS: {state_label}", (24, 45),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.36, status_color, 1, cv2.LINE_AA
         )
+
+        # Camera source indicator
+        cam_display = camera_name or "Camera 0"
+        cv2.putText(
+            frame, f"CAM: {cam_display} [V]", (24, 60),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.36, (200, 230, 255), 1, cv2.LINE_AA
+        )
+
+        # Top-Center: Transient Camera Switch Notification (if active)
+        if camera_notification:
+            notif_w = min(w - 28, 290)
+            notif_h = 28
+            nx = (w - notif_w) // 2
+            ny = 14
+            self.draw_glass_rect(frame, nx, ny, notif_w, notif_h, accent, bg_alpha=0.7)
+            cv2.putText(
+                frame, camera_notification, (nx + 12, ny + 19),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.38, (255, 255, 255), 1, cv2.LINE_AA
+            )
 
         # Top-Right: Openness Gauge Bar (if hand is detected)
         if hand_detected and openness is not None:
@@ -128,14 +150,15 @@ class HUD:
 
         # Bottom Bar: Controls Legend
         if self.show_help:
-            help_w = min(w - 28, 540)
+            help_w = min(w - 28, 590)
             help_h = 26
             hx = (w - help_w) // 2
             hy = h - help_h - 10
             self.draw_glass_rect(frame, hx, hy, help_w, help_h, accent, bg_alpha=0.6)
 
-            controls_str = f"THEME: {theme.name} [C]  |  RESET [R]  |  SKELETON [H]  |  EXIT [Q/ESC]"
+            cam_short = (cam_display[:12] + "...") if len(cam_display) > 14 else cam_display
+            controls_str = f"THEME [C]  |  CAM: {cam_short} [V]  |  RESET [R]  |  SKELETON [H]  |  EXIT [Q/ESC]"
             cv2.putText(
-                frame, controls_str, (hx + 14, hy + 17),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.38, (220, 240, 255), 1, cv2.LINE_AA
+                frame, controls_str, (hx + 10, hy + 17),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.36, (220, 240, 255), 1, cv2.LINE_AA
             )

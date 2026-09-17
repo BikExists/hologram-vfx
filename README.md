@@ -19,6 +19,11 @@ A high-performance real-time interactive computer vision application that tracks
   - **Scanlines & Hologram Flicker**: Subtle holographic interference pattern for a physical sci-fi aesthetic.
 - **One-Euro & EMA Jitter Filtering**: High precision and zero jitter when holding the hand still, with adaptive low latency during rapid movement.
 - **Sci-Fi Heads-Up Display (HUD)**: Glass-morphic UI showing live FPS, frame latency, tracking status, hand openness gauge bar, and keyboard shortcuts.
+- **Multi-Camera Source Selection**:
+  - Automatic detection and enumeration of available webcam/video devices.
+  - Seamless runtime switching between cameras via key `[V]` or direct selection `[1-9]`.
+  - Built-in graceful error recovery: reverts safely to previous source if a camera fails to open.
+  - Full support for both physical webcams and procedural Synthetic test feed.
 - **Multiple Color Themes**:
   - **Cyber Cyan** (Classic electric hologram)
   - **Solar Flare** (Warm golden amber star)
@@ -118,6 +123,8 @@ python main.py --benchmark 120 --synthetic --headless
 | **Move Hand** | Move the orb smoothly across the viewport |
 | **Open Hand** | Expand the orb's size up to maximum diameter |
 | **Close Hand (Fist)** | Shrink the orb down to a compact core |
+| **V** | Cycle to the next available camera source |
+| **1-9** | Jump directly to camera device index 1-9 |
 | **C** | Cycle color themes (Cyan $\rightarrow$ Solar $\rightarrow$ Violet $\rightarrow$ Matrix) |
 | **R** | Reset orb to the center of the screen |
 | **H** | Toggle holographic hand skeleton joints overlay |

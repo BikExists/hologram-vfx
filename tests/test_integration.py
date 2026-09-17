@@ -57,3 +57,37 @@ def test_app_clean_shutdown():
     # Immediate close without running
     app.close()
     assert not app.running
+
+
+def test_app_camera_switching():
+    from src.camera import CameraDeviceInfo
+    mock_devices = [
+        CameraDeviceInfo(device_id=-1, name="Synthetic Source A", is_synthetic=True),
+        CameraDeviceInfo(device_id=-1, name="Synthetic Source B", is_synthetic=True),
+    ]
+    app = HolographicVFXApp(
+        synthetic_mode=True,
+        headless=True,
+        available_cameras=mock_devices,
+    )
+
+    try:
+        assert app.camera_selector.get_current_device().name == "Synthetic Source A"
+        ret, frame, telemetry = app.step_frame()
+        assert ret is True
+        assert telemetry["camera_name"] == "Synthetic Source A"
+
+        # Switch camera to Source B
+        ok, msg = app.switch_camera()
+        assert ok is True
+        assert app.camera_selector.get_current_device().name == "Synthetic Source B"
+
+        # Step frame on new camera
+        ret, frame, telemetry = app.step_frame()
+        assert ret is True
+        assert telemetry["camera_name"] == "Synthetic Source B"
+        assert frame.shape == (480, 640, 3)
+
+    finally:
+        app.close()
+
