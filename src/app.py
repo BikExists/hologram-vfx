@@ -97,6 +97,15 @@ class HolographicVFXApp:
         # 1. Flip horizontally for intuitive mirror mode
         frame = cv2.flip(frame, 1)
 
+        # Dynamic viewport adaptation for varying camera resolutions
+        h, w = frame.shape[:2]
+        if w != self.width or h != self.height:
+            self.width = w
+            self.height = h
+            self.orb.resize_viewport(w, h)
+            self.orb.rest_x = w * 0.5
+            self.orb.rest_y = h * 0.5
+
         now = time.perf_counter()
         dt = max(0.001, min(0.1, now - self._prev_frame_time))
         self._prev_frame_time = now
@@ -167,6 +176,8 @@ class HolographicVFXApp:
             "openness": openness_val,
             "camera_id": cur_dev.device_id,
             "camera_name": cur_dev.name,
+            "width": self.width,
+            "height": self.height,
         }
 
         return True, frame, telemetry
@@ -184,14 +195,20 @@ class HolographicVFXApp:
 
         self.running = True
         frame_count = 0
+        consecutive_read_failures = 0
 
         try:
             while self.running:
                 ret, frame, telemetry = self.step_frame()
                 if not ret or frame is None:
-                    print("[Warning] Frame read failed.")
-                    break
+                    consecutive_read_failures += 1
+                    if consecutive_read_failures >= 30:
+                        print("[Warning] Extended frame read failure. Exiting loop.")
+                        break
+                    time.sleep(0.01)
+                    continue
 
+                consecutive_read_failures = 0
                 frame_count += 1
                 if max_frames and frame_count >= max_frames:
                     break

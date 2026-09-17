@@ -19,11 +19,12 @@ A high-performance real-time interactive computer vision application that tracks
   - **Scanlines & Hologram Flicker**: Subtle holographic interference pattern for a physical sci-fi aesthetic.
 - **One-Euro & EMA Jitter Filtering**: High precision and zero jitter when holding the hand still, with adaptive low latency during rapid movement.
 - **Sci-Fi Heads-Up Display (HUD)**: Glass-morphic UI showing live FPS, frame latency, tracking status, hand openness gauge bar, and keyboard shortcuts.
-- **Multi-Camera Source Selection**:
-  - Automatic detection and enumeration of available webcam/video devices.
-  - Seamless runtime switching between cameras via key `[V]` or direct selection `[1-9]`.
-  - Built-in graceful error recovery: reverts safely to previous source if a camera fails to open.
-  - Full support for both physical webcams and procedural Synthetic test feed.
+- **Universal Cross-Platform Camera Architecture**:
+  - **Platform-Optimal Backends**: Dynamic backend selection using DirectShow (`CAP_DSHOW`) on Windows, Video4Linux (`CAP_V4L2`) on Linux, and AVFoundation (`CAP_AVFOUNDATION`) on macOS, with universal `CAP_ANY` fallback.
+  - **Dynamic Resolution Adaptation**: Viewport boundary margins, orb physics, and HUD scale automatically to native camera capabilities (e.g. 720p, 1080p, 480p).
+  - **Multi-Camera Device Fallback**: Automatically tries alternative physical cameras if Camera 0 is absent or busy, gracefully falling back to procedural Synthetic mode if no hardware is available.
+  - **Mid-Stream Disconnection Recovery**: Transparently recovers and transitions to synthetic feed if a physical USB webcam is disconnected while running.
+  - **Seamless Camera Switching**: Switch input sources at runtime via key `[V]` or direct jump `[1-9]`.
 - **Multiple Color Themes**:
   - **Cyber Cyan** (Classic electric hologram)
   - **Solar Flare** (Warm golden amber star)
@@ -42,7 +43,7 @@ antigravity/
 │   ├── gestures.py         # Scale-invariant pinch hysteresis and openness estimation
 │   ├── hand_tracker.py     # MediaPipe Hands integration, landmark extraction & skeleton overlay
 │   ├── interaction.py      # OrbController state machine, spring-damper kinematics, boundaries
-│   ├── camera.py           # OpenCV VideoCapture manager and SyntheticCamera feed
+│   ├── camera.py           # Cross-platform VideoCapture manager, selector, and SyntheticCamera
 │   ├── app.py              # Main HolographicVFXApp loop orchestrating all subsystems
 │   └── vfx/
 │       ├── __init__.py
@@ -52,6 +53,8 @@ antigravity/
 │       └── hud.py          # Sci-fi glass panels, FPS counter, openness gauge
 ├── tests/
 │   ├── __init__.py
+│   ├── test_camera_robustness.py # Cross-platform backend, fallback, and disconnect tests
+│   ├── test_camera_selector.py   # Camera detection, cycling, and device indexing tests
 │   ├── test_filters.py     # Smoothing filter verification
 │   ├── test_gestures.py    # Gesture math, pinch hysteresis, and openness tests
 │   ├── test_vfx.py         # VFX rendering, particles, color themes, and ROI clipping tests

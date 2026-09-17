@@ -1,17 +1,30 @@
 """Camera capture management, device detection, and camera selection.
 
-Provides robust OpenCV webcam acquisition with Windows DirectShow support,
-device enumeration, clean runtime camera switching, graceful fallback,
+Provides robust cross-platform OpenCV webcam acquisition with Windows DirectShow,
+Linux V4L2, and macOS AVFoundation backend support, device enumeration, clean
+runtime camera switching, multi-camera fallback, mid-stream disconnect recovery,
 and synthetic test feeds for automated testing and CI.
 """
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import math
+import sys
 import time
 from typing import List, Optional, Tuple
 import cv2
 import numpy as np
+
+
+def get_preferred_backend() -> int:
+    """Returns the optimal OpenCV VideoCapture backend for the current operating system."""
+    if sys.platform.startswith("win"):
+        return cv2.CAP_DSHOW
+    elif sys.platform.startswith("linux"):
+        return cv2.CAP_V4L2
+    elif sys.platform == "darwin":
+        return cv2.CAP_AVFOUNDATION
+    return cv2.CAP_ANY
 
 
 class BaseCameraSource(ABC):
@@ -51,22 +64,51 @@ def detect_available_cameras(
     max_devices: int = 4,
     include_synthetic: bool = True,
 ) -> List[CameraDeviceInfo]:
-    """Probes available video devices up to max_devices."""
+    """Probes available video devices up to max_devices with platform-optimal backends.
+
+    Avoids unnecessary long startup delays by terminating probing early when consecutive
+    device indices fail to open beyond index 0.
+    """
     devices: List[CameraDeviceInfo] = []
+    preferred_backend = get_preferred_backend()
+    consecutive_probe_failures = 0
 
     for idx in range(max_devices):
-        cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
-        if not cap.isOpened():
-            cap = cv2.VideoCapture(idx)
+        cap = None
+        if preferred_backend != cv2.CAP_ANY:
+            try:
+                cap = cv2.VideoCapture(idx, preferred_backend)
+            except Exception:
+                cap = None
 
-        if cap.isOpened():
-            ret, frame = cap.read()
-            if ret and frame is not None:
-                name = f"Camera {idx}" + (" (Default)" if idx == 0 else "")
-                devices.append(CameraDeviceInfo(device_id=idx, name=name, is_synthetic=False))
-            cap.release()
+        if cap is None or not cap.isOpened():
+            try:
+                cap = cv2.VideoCapture(idx, cv2.CAP_ANY)
+            except Exception:
+                cap = None
 
-    # If no physical camera was detected, provide Camera 0 placeholder if requested
+        opened = False
+        if cap is not None and cap.isOpened():
+            try:
+                ret, frame = cap.read()
+                if ret and frame is not None:
+                    opened = True
+                    name = f"Camera {idx}" + (" (Default)" if idx == 0 else "")
+                    devices.append(CameraDeviceInfo(device_id=idx, name=name, is_synthetic=False))
+            except Exception:
+                pass
+            finally:
+                cap.release()
+
+        if opened:
+            consecutive_probe_failures = 0
+        else:
+            consecutive_probe_failures += 1
+            # If 2 consecutive indices fail beyond index 0, stop probing to avoid startup delays
+            if idx >= 1 and consecutive_probe_failures >= 2:
+                break
+
+    # If no physical camera was detected and synthetic is not requested, keep Camera 0 placeholder
     if not devices and not include_synthetic:
         devices.append(CameraDeviceInfo(device_id=0, name="Camera 0", is_synthetic=False))
 
@@ -87,42 +129,61 @@ class CameraManager(BaseCameraSource):
         height: int = 480,
         fps: int = 30,
         use_dshow: bool = True,
+        backend: Optional[int] = None,
     ):
         self.camera_id = camera_id
         self.target_w = width
         self.target_h = height
         self.target_fps = fps
         self.use_dshow = use_dshow
+        self.backend = backend if backend is not None else (
+            get_preferred_backend() if use_dshow else cv2.CAP_ANY
+        )
 
         self.cap: Optional[cv2.VideoCapture] = None
         self.actual_w = width
         self.actual_h = height
+        self.actual_fps = fps
         self._is_opened = False
 
     def open(self) -> bool:
-        """Opens camera using optimal backend on Windows."""
+        """Opens camera using optimal platform backend with universal fallback."""
         self.release()
 
-        # Try DirectShow on Windows first for fast startup
-        if self.use_dshow:
-            self.cap = cv2.VideoCapture(self.camera_id, cv2.CAP_DSHOW)
-            if not self.cap.isOpened():
-                # Fallback to default
-                self.cap = cv2.VideoCapture(self.camera_id)
-        else:
-            self.cap = cv2.VideoCapture(self.camera_id)
+        # Try preferred platform backend first
+        if self.backend != cv2.CAP_ANY:
+            try:
+                self.cap = cv2.VideoCapture(self.camera_id, self.backend)
+            except Exception:
+                self.cap = None
+
+        if not self.cap or not self.cap.isOpened():
+            # Universal fallback to default backend
+            try:
+                self.cap = cv2.VideoCapture(self.camera_id, cv2.CAP_ANY)
+            except Exception:
+                self.cap = None
 
         if not self.cap or not self.cap.isOpened():
             self._is_opened = False
             return False
 
-        # Set requested resolution
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.target_w)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.target_h)
-        self.cap.set(cv2.CAP_PROP_FPS, self.target_fps)
+        # Set requested resolution and framerate
+        try:
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.target_w)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.target_h)
+            self.cap.set(cv2.CAP_PROP_FPS, self.target_fps)
+        except Exception:
+            pass
 
-        self.actual_w = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or self.target_w
-        self.actual_h = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or self.target_h
+        # Query actual dimensions and framerate from hardware driver
+        w_val = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        h_val = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        fps_val = self.cap.get(cv2.CAP_PROP_FPS)
+
+        self.actual_w = int(w_val) if w_val and w_val > 0 else self.target_w
+        self.actual_h = int(h_val) if h_val and h_val > 0 else self.target_h
+        self.actual_fps = int(fps_val) if fps_val and fps_val > 0 else self.target_fps
         self._is_opened = True
         return True
 
@@ -134,6 +195,11 @@ class CameraManager(BaseCameraSource):
         ret, frame = self.cap.read()
         if not ret or frame is None:
             return False, None
+
+        # Dynamically ensure actual dimensions match incoming frame
+        h, w = frame.shape[:2]
+        self.actual_w = w
+        self.actual_h = h
 
         return True, frame
 
@@ -167,6 +233,7 @@ class SyntheticCamera(BaseCameraSource):
         self.actual_w = width
         self.actual_h = height
         self.fps = fps
+        self.actual_fps = fps
         self.start_time = time.perf_counter()
         self.frame_idx = 0
         self._is_opened = True
@@ -209,7 +276,7 @@ class SyntheticCamera(BaseCameraSource):
 
 
 class CameraSelector:
-    """Coordinates camera devices, active source instantiation, and clean switching."""
+    """Coordinates camera devices, active source instantiation, clean switching, and recovery."""
 
     def __init__(
         self,
@@ -240,19 +307,61 @@ class CameraSelector:
                     self.current_idx = i
                     break
         elif initial_camera_id != 0:
+            found = False
             for i, dev in enumerate(self.devices):
                 if not dev.is_synthetic and dev.device_id == initial_camera_id:
                     self.current_idx = i
+                    found = True
                     break
+            if not found:
+                # If requested camera ID not found, default to first physical if available, else synthetic
+                for i, dev in enumerate(self.devices):
+                    if not dev.is_synthetic:
+                        self.current_idx = i
+                        break
+        else:
+            # initial_camera_id == 0: prefer physical Camera 0 if present, else first available physical
+            first_phys = None
+            for i, dev in enumerate(self.devices):
+                if not dev.is_synthetic:
+                    if dev.device_id == 0:
+                        first_phys = i
+                        break
+                    elif first_phys is None:
+                        first_phys = i
+            if first_phys is not None:
+                self.current_idx = first_phys
 
         self.active_source: Optional[BaseCameraSource] = None
         self.status_message: Optional[str] = None
         self.status_message_time: float = 0.0
+        self._consecutive_read_failures: int = 0
 
     @property
     def camera_id(self) -> int:
         """Compatibility property matching CameraManager.camera_id."""
         return self.get_current_device().device_id
+
+    @property
+    def actual_w(self) -> int:
+        """Active capture width."""
+        if self.active_source is not None and hasattr(self.active_source, "actual_w"):
+            return self.active_source.actual_w
+        return self.width
+
+    @property
+    def actual_h(self) -> int:
+        """Active capture height."""
+        if self.active_source is not None and hasattr(self.active_source, "actual_h"):
+            return self.active_source.actual_h
+        return self.height
+
+    @property
+    def actual_fps(self) -> int:
+        """Active capture framerate."""
+        if self.active_source is not None and hasattr(self.active_source, "actual_fps"):
+            return self.active_source.actual_fps
+        return 30
 
     def get_current_device(self) -> CameraDeviceInfo:
         """Returns the currently active CameraDeviceInfo."""
@@ -263,34 +372,104 @@ class CameraSelector:
         return list(self.devices)
 
     def open(self) -> bool:
-        """Opens the currently selected camera device."""
+        """Opens the currently selected camera device, with intelligent fallback across devices."""
         dev = self.get_current_device()
         if self.active_source is not None:
             self.active_source.release()
             self.active_source = None
 
         if dev.is_synthetic:
-            source = SyntheticCamera(width=self.width, height=self.height)
-        else:
-            source = CameraManager(camera_id=dev.device_id, width=self.width, height=self.height)
+            source: BaseCameraSource = SyntheticCamera(width=self.width, height=self.height)
+            if source.open():
+                self.active_source = source
+                self._consecutive_read_failures = 0
+                return True
 
+        # Try opening selected physical camera
+        source = CameraManager(camera_id=dev.device_id, width=self.width, height=self.height)
         if source.open():
             self.active_source = source
+            self._consecutive_read_failures = 0
             return True
 
-        # Fallback to synthetic if physical camera failed
-        print(f"[Warning] Failed to open {dev.name}, falling back to Synthetic...")
+        # Physical camera failed: try other detected physical cameras if available
+        print(f"[Warning] Failed to open {dev.name}. Checking other available cameras...")
+        for i, alt_dev in enumerate(self.devices):
+            if i == self.current_idx or alt_dev.is_synthetic:
+                continue
+            alt_source = CameraManager(camera_id=alt_dev.device_id, width=self.width, height=self.height)
+            if alt_source.open():
+                self.current_idx = i
+                self.active_source = alt_source
+                self._consecutive_read_failures = 0
+                msg = f"{dev.name} unavailable; using {alt_dev.name}"
+                self.status_message = msg
+                self.status_message_time = time.perf_counter()
+                print(f"[Camera] {msg}")
+                return True
+
+        # All physical cameras failed: fallback to synthetic camera
+        print(f"[Warning] No physical cameras accessible. Falling back to Synthetic feed...")
+        for i, alt_dev in enumerate(self.devices):
+            if alt_dev.is_synthetic:
+                self.current_idx = i
+                break
         fallback = SyntheticCamera(width=self.width, height=self.height)
         fallback.open()
         self.active_source = fallback
-        return False
+        self._consecutive_read_failures = 0
+        msg = f"{dev.name} failed; using Synthetic Feed"
+        self.status_message = msg
+        self.status_message_time = time.perf_counter()
+        return True
 
     def read_frame(self) -> Tuple[bool, Optional[np.ndarray]]:
-        """Reads a frame from the currently active camera source."""
+        """Reads a frame from the active camera source, with mid-stream disconnect recovery."""
         if self.active_source is None:
             if not self.open():
                 return False, None
-        return self.active_source.read_frame()
+
+        ret, frame = self.active_source.read_frame()
+        if not ret or frame is None:
+            self._consecutive_read_failures += 1
+            # If a physical camera fails consecutively 5 times, attempt stream recovery
+            dev = self.get_current_device()
+            if self._consecutive_read_failures >= 5 and not dev.is_synthetic:
+                print(f"[Warning] Stream lost on {dev.name}. Attempting recovery to Synthetic feed...")
+                self._recover_stream()
+                if self.active_source is not None:
+                    return self.active_source.read_frame()
+            return False, None
+
+        self._consecutive_read_failures = 0
+        return True, frame
+
+    def _recover_stream(self) -> None:
+        """Recovers from a dropped hardware stream by falling back to synthetic feed."""
+        prev_name = self.get_current_device().name
+        if self.active_source is not None:
+            self.active_source.release()
+            self.active_source = None
+
+        # Find or create synthetic device
+        syn_idx = -1
+        for i, d in enumerate(self.devices):
+            if d.is_synthetic:
+                syn_idx = i
+                break
+        if syn_idx == -1:
+            self.devices.append(CameraDeviceInfo(device_id=-1, name="Synthetic Feed", is_synthetic=True))
+            syn_idx = len(self.devices) - 1
+
+        self.current_idx = syn_idx
+        fallback = SyntheticCamera(width=self.width, height=self.height)
+        fallback.open()
+        self.active_source = fallback
+        self._consecutive_read_failures = 0
+        msg = f"{prev_name} disconnected; running on Synthetic"
+        self.status_message = msg
+        self.status_message_time = time.perf_counter()
+        print(f"[Camera Recovery] {msg}")
 
     def switch_to_next(self) -> Tuple[bool, str]:
         """Switches to the next camera in the detected devices list."""
@@ -337,6 +516,7 @@ class CameraSelector:
             if old_source is not None:
                 old_source.release()
             self.active_source = new_source
+            self._consecutive_read_failures = 0
             msg = f"Switched to {target_dev.name}"
             self.status_message = msg
             self.status_message_time = time.perf_counter()
