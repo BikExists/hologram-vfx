@@ -50,6 +50,12 @@ class HolographicMenu:
         self.panel_y: int = 0
         self.panel_w: int = 0
         self.panel_h: int = 0
+        self.close_item: Optional[MenuItem] = None
+        self._layout_w: int = 640
+        self._layout_h: int = 480
+
+        # Baseline layout construction guarantees close_item and menu items exist immediately
+        self.build_layout(640, 480)
 
     def handle_secondary_hand_scroll(self, secondary_hand_y_px: Optional[float], dt: float = 0.033) -> None:
         """Applies smooth scrolling based on relative secondary-hand vertical movement."""
@@ -66,39 +72,31 @@ class HolographicMenu:
 
         self.prev_secondary_y = secondary_hand_y_px
 
-    def update(
+    def build_layout(
         self,
-        cursor_pos_px: Optional[Tuple[float, float]],
-        is_pinching: bool,
-        click_event: bool,
-        secondary_hand_y: Optional[float],
-        active_object_id: int,
-        active_mode_name: str,
-        active_theme_name: str,
-        active_camera_name: str,
-        available_cameras: List[CameraDeviceInfo],
         frame_width: int,
         frame_height: int,
-        dt: float = 0.033,
+        active_object_id: int = 1,
+        active_mode_name: str = "STANDARD 2-HAND",
+        active_theme_name: str = "CYAN",
+        active_camera_name: str = "Default Camera",
+        available_cameras: Optional[List[CameraDeviceInfo]] = None,
         pending_object_id: Optional[int] = None,
         pending_mode_name: Optional[str] = None,
         pending_theme_name: Optional[str] = None,
         pending_camera_idx: Optional[int] = None,
         pending_camera_name: Optional[str] = None,
-    ) -> Optional[Tuple[str, Any]]:
-        """Updates menu layout, hit tests cursor, applies scroll, and handles button selection."""
+    ) -> None:
+        """Constructs or recalculates visual layout geometry and menu items."""
+        self._layout_w = frame_width
+        self._layout_h = frame_height
+
         # Determine effective selection for visual feedback (prefer staged pending changes)
         display_obj_id = pending_object_id if pending_object_id is not None else active_object_id
         display_mode = pending_mode_name if pending_mode_name is not None else active_mode_name
         display_theme = pending_theme_name if pending_theme_name is not None else active_theme_name
         display_cam_name = pending_camera_name if pending_camera_name is not None else active_camera_name
 
-        # 1. Update smooth scroll with exponential decay
-        self.handle_secondary_hand_scroll(secondary_hand_y, dt=dt)
-        alpha = min(1.0, 14.0 * dt)
-        self.scroll_y += (self.target_scroll_y - self.scroll_y) * alpha
-
-        # 2. Build or refresh dynamic layout
         scale = max(0.85, min(1.5, min(frame_width / 640.0, frame_height / 480.0)))
         self.panel_w = int(min(frame_width - 32, 420 * scale))
         self.panel_h = int(min(frame_height - 36, 360 * scale))
@@ -235,6 +233,52 @@ class HolographicMenu:
         self.items = items_list
         self.close_item = close_item
 
+    def update(
+        self,
+        cursor_pos_px: Optional[Tuple[float, float]],
+        is_pinching: bool,
+        click_event: bool,
+        secondary_hand_y: Optional[float],
+        active_object_id: int,
+        active_mode_name: str,
+        active_theme_name: str,
+        active_camera_name: str,
+        available_cameras: List[CameraDeviceInfo],
+        frame_width: int,
+        frame_height: int,
+        dt: float = 0.033,
+        pending_object_id: Optional[int] = None,
+        pending_mode_name: Optional[str] = None,
+        pending_theme_name: Optional[str] = None,
+        pending_camera_idx: Optional[int] = None,
+        pending_camera_name: Optional[str] = None,
+    ) -> Optional[Tuple[str, Any]]:
+        """Updates menu layout, hit tests cursor, applies scroll, and handles button selection."""
+        # 1. Update smooth scroll with exponential decay
+        self.handle_secondary_hand_scroll(secondary_hand_y, dt=dt)
+        alpha = min(1.0, 14.0 * dt)
+        self.scroll_y += (self.target_scroll_y - self.scroll_y) * alpha
+
+        # 2. Build or refresh dynamic layout
+        self.build_layout(
+            frame_width=frame_width,
+            frame_height=frame_height,
+            active_object_id=active_object_id,
+            active_mode_name=active_mode_name,
+            active_theme_name=active_theme_name,
+            active_camera_name=active_camera_name,
+            available_cameras=available_cameras,
+            pending_object_id=pending_object_id,
+            pending_mode_name=pending_mode_name,
+            pending_theme_name=pending_theme_name,
+            pending_camera_idx=pending_camera_idx,
+            pending_camera_name=pending_camera_name,
+        )
+
+        scale = max(0.85, min(1.5, min(frame_width / 640.0, frame_height / 480.0)))
+        close_item = self.close_item
+        close_btn_y = close_item.y if close_item is not None else (self.panel_y + self.panel_h - int(38 * scale))
+
         # 3. Hit-test cursor
         selected_action: Optional[Tuple[str, Any]] = None
         self.hovered_item = None
@@ -243,7 +287,8 @@ class HolographicMenu:
             cx, cy = cursor_pos_px
 
             # Check close button first (pinned at bottom of panel)
-            if (close_item.x <= cx <= close_item.x + close_item.w and
+            if (close_item is not None and
+                close_item.x <= cx <= close_item.x + close_item.w and
                 close_item.y <= cy <= close_item.y + close_item.h):
                 close_item.is_hovered = True
                 self.hovered_item = close_item
@@ -270,6 +315,11 @@ class HolographicMenu:
     def render(self, frame: np.ndarray, theme: ColorTheme) -> None:
         """Renders the sci-fi holographic menu with glass backdrop, buttons, and scrollbar."""
         h, w = frame.shape[:2]
+
+        # Ensure layout and close_item are initialized for current frame dimensions
+        if self.close_item is None or self.panel_w == 0 or getattr(self, "_layout_w", None) != w or getattr(self, "_layout_h", None) != h:
+            self.build_layout(w, h)
+
         scale = max(0.85, min(1.5, min(w / 640.0, h / 480.0)))
         accent = theme.hud_accent
         primary = theme.ring_primary
@@ -318,7 +368,7 @@ class HolographicMenu:
 
         # 4. Scrollable Items (Clipped within visible list bounds)
         clip_top = div_y + 2
-        close_btn_y = self.close_item.y
+        close_btn_y = self.close_item.y if self.close_item is not None else (py + ph - int(38 * scale))
         clip_bottom = close_btn_y - int(6 * scale)
 
         for item in self.items:
@@ -385,18 +435,19 @@ class HolographicMenu:
             )
 
         # 6. Pinned [ CLOSE MENU ] Button
-        ci = self.close_item
-        close_bg = (60, 40, 40) if ci.is_hovered else (30, 20, 20)
-        close_border = (120, 200, 255) if ci.is_hovered else accent
+        if self.close_item is not None:
+            ci = self.close_item
+            close_bg = (60, 40, 40) if ci.is_hovered else (30, 20, 20)
+            close_border = (120, 200, 255) if ci.is_hovered else accent
 
-        c_roi = frame[ci.y : ci.y + ci.h, ci.x : ci.x + ci.w]
-        if c_roi.size > 0:
-            c_overlay = np.full_like(c_roi, close_bg)
-            cv2.addWeighted(c_overlay, 0.45, c_roi, 0.55, 0, c_roi)
+            c_roi = frame[ci.y : ci.y + ci.h, ci.x : ci.x + ci.w]
+            if c_roi.size > 0:
+                c_overlay = np.full_like(c_roi, close_bg)
+                cv2.addWeighted(c_overlay, 0.45, c_roi, 0.55, 0, c_roi)
 
-        cv2.rectangle(frame, (ci.x, ci.y), (ci.x + ci.w, ci.y + ci.h), close_border, 1, cv2.LINE_AA)
-        c_font_scale = 0.34 * scale
-        (cw, ch), _ = cv2.getTextSize(ci.label, font, c_font_scale, 1)
-        cx_pos = ci.x + (ci.w - cw) // 2
-        cy_pos = ci.y + int(ci.h * 0.65)
-        cv2.putText(frame, ci.label, (cx_pos, cy_pos), font, c_font_scale, (255, 255, 255), 1, cv2.LINE_AA)
+            cv2.rectangle(frame, (ci.x, ci.y), (ci.x + ci.w, ci.y + ci.h), close_border, 1, cv2.LINE_AA)
+            c_font_scale = 0.34 * scale
+            (cw, ch), _ = cv2.getTextSize(ci.label, font, c_font_scale, 1)
+            cx_pos = ci.x + (ci.w - cw) // 2
+            cy_pos = ci.y + int(ci.h * 0.65)
+            cv2.putText(frame, ci.label, (cx_pos, cy_pos), font, c_font_scale, (255, 255, 255), 1, cv2.LINE_AA)

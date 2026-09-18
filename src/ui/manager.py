@@ -112,6 +112,21 @@ class UIManager:
             self.pending_theme_name = active_theme_name
             self.pending_camera_name = active_camera_name
             self.pending_camera_idx = active_camera_idx
+
+            # Build initial layout with staged settings
+            self.menu.build_layout(
+                frame_width=getattr(self.menu, "_layout_w", 640),
+                frame_height=getattr(self.menu, "_layout_h", 480),
+                active_object_id=active_object_id if active_object_id is not None else 1,
+                active_mode_name=active_mode_name or "STANDARD 2-HAND",
+                active_theme_name=active_theme_name or "CYAN",
+                active_camera_name=active_camera_name or "Default Camera",
+                pending_object_id=self.pending_object_id,
+                pending_mode_name=self.pending_mode_name,
+                pending_theme_name=self.pending_theme_name,
+                pending_camera_idx=self.pending_camera_idx,
+                pending_camera_name=self.pending_camera_name,
+            )
         return res, msg
 
     def close_menu(
@@ -254,6 +269,15 @@ class UIManager:
                     active_theme_name=active_theme_name,
                     active_camera_name=active_camera_name,
                     force=True,
+                )
+                self.menu.build_layout(
+                    frame_width=frame_width,
+                    frame_height=frame_height,
+                    active_object_id=active_object_id,
+                    active_mode_name=active_mode_name,
+                    active_theme_name=active_theme_name,
+                    active_camera_name=active_camera_name,
+                    available_cameras=available_cameras,
                 )
                 events["opened_menu"] = True
 

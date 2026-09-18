@@ -17,9 +17,10 @@ from src.hand_tracker import HandData
 from src.objects.manager import HolographicObjectManager
 from src.objects.orb import HolographicOrb
 from src.ui.manager import UIManager
-from src.ui.menu import HolographicMenu
+from src.ui.menu import HolographicMenu, MenuItem
 from src.ui.state import UIState
 from src.ui.trigger_zone import MenuTriggerZone
+from src.vfx.color_themes import get_theme
 from tests.test_holographic_ui import make_dummy_hand
 
 
@@ -522,3 +523,186 @@ def test_21_commit_pending_changes_no_op_when_unchanged():
     assert res[0] is True
     # Zero redundant callbacks should be fired
     assert len(called) == 0
+
+
+# =============================================================================
+# 6. Menu Lifecycle & close_item Integrity Tests
+# =============================================================================
+
+def test_22_menu_close_item_lifecycle_initialization():
+    """Verify close_item exists immediately upon instantiation and has valid geometry."""
+    menu = HolographicMenu()
+    assert hasattr(menu, "close_item")
+    assert menu.close_item is not None
+    assert isinstance(menu.close_item, MenuItem)
+    assert menu.close_item.id == "close_btn"
+    assert menu.close_item.action_type == "CLOSE"
+    assert menu.close_item.x > 0
+    assert menu.close_item.y > 0
+    assert menu.close_item.w > 0
+    assert menu.close_item.h > 0
+    assert len(menu.items) > 0
+
+
+def test_23_menu_render_direct_without_prior_update():
+    """Verify HolographicMenu can be directly rendered with zero prior update calls."""
+    menu = HolographicMenu()
+    # DO NOT call update()
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    theme = get_theme("cyan")
+
+    # Must execute cleanly without AttributeError: 'HolographicMenu' object has no attribute 'close_item'
+    menu.render(frame, theme)
+
+    assert menu.close_item is not None
+    assert menu.close_item.y > 0
+    # Frame must have been modified with glass panel
+    assert np.any(frame > 0)
+
+
+def test_24_menu_render_in_every_supported_state():
+    """Regression test rendering HolographicMenu in every supported state:
+    - All 6 objects (Orb, Cube, Planet, Ghost Orchid, Bhondu Face, Jellyfish)
+    - All interaction modes (STANDARD, INDEPENDENT)
+    - All color themes (cyan, magenta, gold, emerald, violet)
+    - Single camera vs multiple cameras
+    - Hovered vs unhovered close item
+    - Scrolled vs unscrolled
+    - Various resolutions & aspect ratios (640x480, 1280x720, 1920x1080, 640x360, 800x600)
+    """
+    cameras_single = []
+    cameras_multi = [
+        CameraDeviceInfo(device_id=0, name="Built-in Webcam"),
+        CameraDeviceInfo(device_id=1, name="NVIDIA Broadcast"),
+        CameraDeviceInfo(device_id=-1, name="Synthetic Feed", is_synthetic=True),
+    ]
+
+    resolutions = [
+        (640, 480),   # 4:3 SD
+        (1280, 720),  # 16:9 HD
+        (1920, 1080), # 16:9 FHD
+        (640, 360),   # 16:9 nVidia scaler
+        (800, 600),   # 4:3 SVGA
+    ]
+
+    theme_names = ["cyan", "magenta", "gold", "emerald", "violet"]
+    modes = ["STANDARD 2-HAND", "INDEPENDENT DUAL-HAND"]
+
+    for obj_id in range(1, 7):
+        for mode in modes:
+            for t_name in theme_names:
+                theme = get_theme(t_name)
+                for cams in [cameras_single, cameras_multi]:
+                    for w, h in resolutions:
+                        menu = HolographicMenu()
+
+                        # Test 1: Layout built with these parameters
+                        menu.build_layout(
+                            frame_width=w,
+                            frame_height=h,
+                            active_object_id=obj_id,
+                            active_mode_name=mode,
+                            active_theme_name=t_name,
+                            available_cameras=cams,
+                        )
+                        assert menu.close_item is not None
+                        assert 0 <= menu.close_item.x <= w
+                        assert 0 <= menu.close_item.y <= h
+
+                        # Test 2: Render unhovered
+                        frame = np.zeros((h, w, 3), dtype=np.uint8)
+                        menu.render(frame, theme)
+                        assert menu.close_item is not None
+
+                        # Test 3: Render hovered close button
+                        menu.close_item.is_hovered = True
+                        frame_hover = np.zeros((h, w, 3), dtype=np.uint8)
+                        menu.render(frame_hover, theme)
+
+                        # Test 4: Render scrolled
+                        menu.scroll_y = 50.0
+                        frame_scrolled = np.zeros((h, w, 3), dtype=np.uint8)
+                        menu.render(frame_scrolled, theme)
+
+
+def test_25_uimanager_trigger_zone_immediate_render_lifecycle():
+    """Verify that when the corner trigger zone opens the menu, rendering on the exact
+    same frame does NOT throw AttributeError, and close_item is immediately valid.
+    """
+    manager = UIManager(dwell_time=0.10)
+    manager.dismiss_welcome()
+    assert manager.current_state == UIState.RUNNING
+
+    zx, zy = get_zone_center_coords(manager.trigger_zone, 640, 480)
+    dwell_hand = make_dummy_hand(palm_x=zx, palm_y=zy, openness=0.95, is_pinching=False)
+
+    opened = False
+    for _ in range(10):
+        ev = manager.update(
+            detected_hands=[dwell_hand],
+            active_object_id=1,
+            active_mode_name="STANDARD 2-HAND",
+            active_theme_name="CYAN",
+            active_camera_name="Cam",
+            available_cameras=[],
+            frame_width=640,
+            frame_height=480,
+            dt=0.033,
+        )
+        if ev.get("opened_menu"):
+            opened = True
+            # IMMEDIATELY render on this exact frame (simulating app.py frame loop)
+            frame = np.zeros((480, 640, 3), dtype=np.uint8)
+            theme = get_theme("cyan")
+            manager.render(frame, theme)
+            assert np.any(frame > 0)
+            break
+
+    assert opened is True
+    assert manager.current_state == UIState.MENU
+    assert manager.menu.close_item is not None
+    assert manager.menu.close_item.y > 0
+
+
+def test_26_uimanager_open_and_toggle_menu_immediate_render():
+    """Verify UIManager.open_menu() and toggle_menu() allow immediate render with valid close_item."""
+    manager = UIManager()
+    manager.dismiss_welcome()
+
+    # Case A: open_menu() -> immediate render
+    manager.open_menu(active_object_id=3, active_theme_name="MAGENTA", force=True)
+    assert manager.current_state == UIState.MENU
+    assert manager.menu.close_item is not None
+
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    theme = get_theme("magenta")
+    manager.render(frame, theme)
+    assert np.any(frame > 0)
+
+    # Close
+    manager.close_menu(force=True)
+    assert manager.current_state == UIState.RUNNING
+
+    # Case B: toggle_menu() -> immediate render
+    manager.toggle_menu(force=True)
+    assert manager.current_state == UIState.MENU
+    assert manager.menu.close_item is not None
+
+    frame2 = np.zeros((480, 640, 3), dtype=np.uint8)
+    manager.render(frame2, theme)
+    assert np.any(frame2 > 0)
+
+
+def test_27_menu_render_safeguard_if_close_item_is_none():
+    """Defensive test: if close_item is somehow set to None, render() safely recovers."""
+    menu = HolographicMenu()
+    menu.close_item = None
+
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    theme = get_theme("gold")
+
+    # Should safely recover by calling build_layout and rendering without throwing
+    menu.render(frame, theme)
+    assert menu.close_item is not None
+    assert menu.close_item.y > 0
+
