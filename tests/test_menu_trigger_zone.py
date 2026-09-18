@@ -490,3 +490,35 @@ def test_20_existing_one_hand_and_independent_interaction_remain_functional():
     assert "object_type" in telemetry
     assert "selected_mode_name" in telemetry
     assert telemetry["is_menu_open"] is False
+
+
+def test_21_commit_pending_changes_no_op_when_unchanged():
+    """Verify that opening and closing menu without user modifications does not re-trigger callbacks."""
+    called = []
+    manager = UIManager(
+        on_select_object=lambda o: called.append(f"obj_{o}"),
+        on_cycle_mode=lambda: called.append("mode"),
+        on_cycle_theme=lambda: called.append("theme"),
+        on_switch_camera_idx=lambda c: called.append(f"cam_{c}"),
+    )
+    manager.dismiss_welcome()
+    # Open with active settings
+    manager.open_menu(
+        active_object_id=2,
+        active_mode_name="STANDARD 2-HAND",
+        active_theme_name="CYAN",
+        active_camera_name="Cam",
+        active_camera_idx=0,
+        force=True,
+    )
+    # Close without modifying pending values
+    res = manager.close_menu(
+        active_object_id=2,
+        active_mode_name="STANDARD 2-HAND",
+        active_theme_name="CYAN",
+        active_camera_idx=0,
+        force=True,
+    )
+    assert res[0] is True
+    # Zero redundant callbacks should be fired
+    assert len(called) == 0

@@ -90,10 +90,10 @@ class UIManager:
 
     def open_menu(
         self,
-        active_object_id: int = 1,
-        active_mode_name: str = "STANDARD 2-HAND",
-        active_theme_name: str = "CYAN",
-        active_camera_name: str = "Default Camera",
+        active_object_id: Optional[int] = 1,
+        active_mode_name: Optional[str] = "STANDARD 2-HAND",
+        active_theme_name: Optional[str] = "CYAN",
+        active_camera_name: Optional[str] = "Default Camera",
         active_camera_idx: Optional[int] = None,
         force: bool = False,
     ) -> Tuple[bool, str]:
@@ -101,6 +101,12 @@ class UIManager:
         self.cursor.reset()
         res, msg = self.state_machine.open_menu(force=force)
         if res:
+            self._initial_object_id = active_object_id
+            self._initial_mode_name = active_mode_name
+            self._initial_theme_name = active_theme_name
+            self._initial_camera_name = active_camera_name
+            self._initial_camera_idx = active_camera_idx
+
             self.pending_object_id = active_object_id
             self.pending_mode_name = active_mode_name
             self.pending_theme_name = active_theme_name
@@ -131,10 +137,10 @@ class UIManager:
     def toggle_menu(
         self,
         force: bool = False,
-        active_object_id: int = 1,
-        active_mode_name: str = "STANDARD 2-HAND",
-        active_theme_name: str = "CYAN",
-        active_camera_name: str = "Default Camera",
+        active_object_id: Optional[int] = None,
+        active_mode_name: Optional[str] = None,
+        active_theme_name: Optional[str] = None,
+        active_camera_name: Optional[str] = None,
         active_camera_idx: Optional[int] = None,
     ) -> Tuple[bool, str]:
         """Toggles menu state, committing changes on close."""
@@ -164,39 +170,40 @@ class UIManager:
         active_camera_idx: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Applies staged pending changes to underlying application callbacks."""
+        cur_obj_id = active_object_id if active_object_id is not None else getattr(self, "_initial_object_id", None)
+        cur_mode = active_mode_name if active_mode_name is not None else getattr(self, "_initial_mode_name", None)
+        cur_theme = active_theme_name if active_theme_name is not None else getattr(self, "_initial_theme_name", None)
+        cur_cam_idx = active_camera_idx if active_camera_idx is not None else getattr(self, "_initial_camera_idx", None)
+
         committed: Dict[str, Any] = {}
 
-        # 1. Object selection
-        if self.pending_object_id is not None:
-            if active_object_id is None or self.pending_object_id != active_object_id:
-                if self.on_select_object:
-                    self.on_select_object(self.pending_object_id)
-                committed["object_id"] = self.pending_object_id
+        # 1. Object selection: ONLY call if pending_object_id differs from initial
+        if self.pending_object_id is not None and (cur_obj_id is None or self.pending_object_id != cur_obj_id):
+            if self.on_select_object:
+                self.on_select_object(self.pending_object_id)
+            committed["object_id"] = self.pending_object_id
 
-        # 2. Mode selection
-        if self.pending_mode_name is not None:
-            if active_mode_name is None or self.pending_mode_name != active_mode_name:
-                if self.on_cycle_mode:
-                    self.on_cycle_mode()
-                committed["mode_name"] = self.pending_mode_name
+        # 2. Mode selection: ONLY call if pending_mode_name differs from initial
+        if self.pending_mode_name is not None and (cur_mode is None or self.pending_mode_name != cur_mode):
+            if self.on_cycle_mode:
+                self.on_cycle_mode()
+            committed["mode_name"] = self.pending_mode_name
 
-        # 3. Theme selection
-        if self.pending_theme_name is not None:
-            if active_theme_name is None or self.pending_theme_name != active_theme_name:
-                if self.on_set_theme:
-                    self.on_set_theme(self.pending_theme_name)
-                elif self.on_cycle_theme:
-                    self.on_cycle_theme()
-                committed["theme_name"] = self.pending_theme_name
+        # 3. Theme selection: ONLY call if pending_theme_name differs from initial
+        if self.pending_theme_name is not None and (cur_theme is None or self.pending_theme_name != cur_theme):
+            if self.on_set_theme:
+                self.on_set_theme(self.pending_theme_name)
+            elif self.on_cycle_theme:
+                self.on_cycle_theme()
+            committed["theme_name"] = self.pending_theme_name
 
-        # 4. Camera selection
-        if self.pending_camera_idx is not None:
-            if active_camera_idx is None or self.pending_camera_idx != active_camera_idx:
-                if self.on_switch_camera_idx:
-                    self.on_switch_camera_idx(self.pending_camera_idx)
-                elif self.on_switch_camera:
-                    self.on_switch_camera()
-                committed["camera_idx"] = self.pending_camera_idx
+        # 4. Camera selection: ONLY call if pending_camera_idx differs from initial
+        if self.pending_camera_idx is not None and (cur_cam_idx is None or self.pending_camera_idx != cur_cam_idx):
+            if self.on_switch_camera_idx:
+                self.on_switch_camera_idx(self.pending_camera_idx)
+            elif self.on_switch_camera:
+                self.on_switch_camera()
+            committed["camera_idx"] = self.pending_camera_idx
 
         # Reset pending variables
         self.pending_object_id = None

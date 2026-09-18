@@ -89,8 +89,9 @@ class HolographicVFXApp:
         self.frame_time_ms: float = 33.3
         self._fps_history = [30.0] * 10
         self._prev_frame_time = time.perf_counter()
-
         self.running: bool = False
+        self._last_menu_close_time: float = 0.0
+        self._window_close_counter: int = 0
 
     @property
     def active_object(self) -> BaseHolographicObject:
@@ -345,12 +346,25 @@ class HolographicVFXApp:
                     key = cv2.waitKey(1) & 0xFF
 
                     if key in (27, ord("q"), ord("Q")):
-                        if key == 27 and self.ui.is_menu_open:
-                            self.ui.toggle_menu()
+                        cur_dev = self.camera_selector.get_current_device()
+                        if self.ui.is_menu_open:
+                            self.ui.close_menu(
+                                active_object_id=self.object_manager.active_object_id,
+                                active_mode_name=self.active_object.get_mode_display_name(),
+                                active_theme_name=self.active_object.theme.name,
+                                active_camera_name=cur_dev.name,
+                                active_camera_idx=self.camera_selector.current_idx,
+                                force=True,
+                            )
+                            self._last_menu_close_time = now
                             print("[Info] Closed holographic menu.")
-                        elif key == 27 and self.ui.is_welcome_active:
+                        elif self.ui.is_welcome_active:
                             self.ui.dismiss_welcome()
+                            self._last_menu_close_time = now
                             print("[Info] Dismissed welcome screen.")
+                        elif (now - self._last_menu_close_time) < 0.40:
+                            # Debounce: user just dismissed menu/welcome with this physical keypress
+                            pass
                         else:
                             print("\n[Info] Exit requested by user.")
                             break
@@ -359,7 +373,14 @@ class HolographicVFXApp:
                             self.ui.dismiss_welcome()
                             print("[Info] Welcome screen dismissed.")
                     elif key in (ord("m"), ord("M")):
-                        self.ui.toggle_menu()
+                        cur_dev = self.camera_selector.get_current_device()
+                        self.ui.toggle_menu(
+                            active_object_id=self.object_manager.active_object_id,
+                            active_mode_name=self.active_object.get_mode_display_name(),
+                            active_theme_name=self.active_object.theme.name,
+                            active_camera_name=cur_dev.name,
+                            active_camera_idx=self.camera_selector.current_idx,
+                        )
                         print(f"[Info] Holographic menu {'opened' if self.ui.is_menu_open else 'closed'}.")
                     elif key in (ord("\t"), ord("i"), ord("I")):
                         _, msg = self.cycle_interaction_mode()
@@ -391,12 +412,26 @@ class HolographicVFXApp:
                                 self._camera_resolution_changed = True
                             print(f"[Info] {msg}")
 
-                    # Handle window close [X] button
-                    if cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1:
-                        break
+                    # Handle window close [X] button with debounce against transient window message glitches
+                    try:
+                        prop_visible = cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE)
+                    except Exception:
+                        prop_visible = 1.0
+
+                    if prop_visible < 1:
+                        self._window_close_counter += 1
+                        if self._window_close_counter >= 5:
+                            print("\n[Info] Window closed by user.")
+                            break
+                    else:
+                        self._window_close_counter = 0
 
         except KeyboardInterrupt:
             print("\n[Info] Interrupted by user.")
+        except Exception as e:
+            import traceback
+            print(f"\n[Error] Unhandled exception in main loop: {e}")
+            traceback.print_exc()
         finally:
             self.close()
 
