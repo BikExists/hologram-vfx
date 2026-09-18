@@ -31,6 +31,12 @@ A high-performance real-time interactive computer vision application that tracks
   - **3 → Holographic Planet**: A planetary body with atmospheric limb-darkening glow, rotating latitude bands and wireframe meridians, tilted concentric Saturn-like rings with depth-sorted front/back occlusion, and an orbiting moon with a particle dust trail.
   - **Seamless State Transfer**: Preserves spatial position, velocity, openness scale, and theme when switching between objects at runtime.
   - **Unified Object Contract**: Extensible base class ensuring all current and future holographic objects operate in unified pixel coordinates with full pinch-grab, spring physics, and openness scaling support.
+- **Holographic Interaction Mode Selector & Independent Dual-Hand Control**:
+  - **Mode Selection (`[M]`)**: Seamlessly cycle between `Standard 2-Hand Transform` and `Independent Dual-Hand Control`.
+  - **Primary Hand (Left)**: Controls spatial position via hand movement and object rotation via hand orientation (Wrist $\to$ Middle MCP vector) with continuous angular unwrapping.
+  - **Secondary Hand (Right)**: Acts as an independent remote controller anywhere in the frame. Hand openness controls scale; hand orientation relative to entry baseline steps through color themes with deadband hysteresis.
+  - **Strict Control Independence**: Secondary hand position/movement does NOT affect object position or rotation; primary hand does NOT affect scale or color theme.
+  - **Zero-Jump Dynamic Baselines**: Seamless transitions between 0, 1, and 2 hands, and zero transform jump when cycling modes.
 - **Two-Hand Holographic Object Transform Interaction**:
   - **Inter-Hand Distance $\rightarrow$ Scale**: Dynamic scale manipulation based on the relative distance between both detected hands, clamped safely to viewport boundaries.
   - **Inter-Hand Orientation $\rightarrow$ Rotation**: Dynamic rotation calculated from the angular vector between both hands, with continuous angle delta unwrapping to prevent $\pm 180^\circ$ inversion jumps.
@@ -79,6 +85,7 @@ antigravity/
 │   ├── test_interaction.py # Orb kinematics, grab/release states, and viewport boundaries
 │   ├── test_objects.py     # Holographic object contract, switching, and rendering tests
 │   ├── test_two_hand_interaction.py # Two-hand distance scaling, rotation, unwrapping, and transitions
+│   ├── test_dual_hand_mode.py # Selectable interaction modes and independent dual-hand tests
 │   └── test_integration.py # Headless end-to-end synthetic pipeline integration test
 ├── main.py                 # CLI entry point supporting live camera, synthetic, and benchmark modes
 ├── requirements.txt        # Frozen package dependencies
@@ -164,8 +171,9 @@ python main.py --benchmark 120 --synthetic --headless
 | **Move Hand** | Move the object smoothly across the viewport |
 | **Open Hand** | Expand the object's size up to maximum diameter |
 | **Close Hand (Fist)** | Shrink the object down to a compact core |
-| **Two Hands (Distance)** | Expand or shrink object scale dynamically based on inter-hand distance |
-| **Two Hands (Angle)** | Rotate object smoothly around its center via relative hand orientation |
+| **M** | Cycle interaction mode: `Standard 2-Hand` $\leftrightarrow$ `Independent Dual-Hand` |
+| **Two Hands (Standard Mode)** | Distance $\rightarrow$ Scale; Relative Angle $\rightarrow$ Rotation; Midpoint $\rightarrow$ Position |
+| **Two Hands (Independent Mode)** | Left (Primary) $\rightarrow$ Position + Rotation; Right (Secondary) $\rightarrow$ Scale (Openness) + Theme (Angle) |
 | **1 / 2 / 3** | Switch active object: `1 = Energy Orb`, `2 = Cyber Cube`, `3 = Planet` |
 | **V** | Cycle to the next available camera source |
 | **4-9** | Jump directly to camera device index 4-9 |

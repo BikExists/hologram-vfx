@@ -109,3 +109,15 @@ class HolographicObjectManager:
     def reset_position(self) -> None:
         """Centers the active holographic object."""
         self.get_active_object().reset_position()
+
+    def cycle_interaction_mode(self) -> Tuple[object, str]:
+        """Cycles interaction mode between STANDARD and INDEPENDENT across all objects."""
+        active_obj = self.get_active_object()
+        new_mode = active_obj.cycle_interaction_mode()
+        for obj in self.objects.values():
+            obj.selected_mode = new_mode
+        mode_name = active_obj.get_mode_display_name()
+        msg = f"Mode: {mode_name}"
+        self.status_message = msg
+        self.status_message_time = time.perf_counter()
+        return new_mode, msg

@@ -111,6 +111,10 @@ class HolographicVFXApp:
         """Switches to the next detected camera device."""
         return self.camera_selector.switch_to_next()
 
+    def cycle_interaction_mode(self) -> Tuple[object, str]:
+        """Cycles between STANDARD and INDEPENDENT interaction modes."""
+        return self.object_manager.cycle_interaction_mode()
+
     def step_frame(self) -> Tuple[bool, Optional[np.ndarray], dict]:
         """Processes a single video frame and returns (success, rendered_frame, telemetry)."""
         ret, frame = self.camera_selector.read_frame()
@@ -175,6 +179,11 @@ class HolographicVFXApp:
         if self.object_manager.status_message and (now - self.object_manager.status_message_time) < 2.5:
             obj_notif = self.object_manager.status_message
 
+        # Synchronize theme index if object theme changed via gesture
+        curr_theme_k = getattr(obj.controller, "current_theme_key", None)
+        if curr_theme_k and curr_theme_k in THEME_KEYS:
+            self.theme_idx = THEME_KEYS.index(curr_theme_k)
+
         rot_deg = math.degrees(obj.rotation)
         self.hud.render(
             frame=frame,
@@ -193,6 +202,7 @@ class HolographicVFXApp:
             interaction_mode=obj.interaction_mode,
             two_hand_scale=obj.two_hand_scale,
             rotation_deg=rot_deg,
+            selected_mode_name=obj.get_mode_display_name(),
         )
 
         telemetry = {
@@ -206,6 +216,8 @@ class HolographicVFXApp:
             "rotation_deg": rot_deg,
             "interaction_mode": obj.interaction_mode,
             "two_hand_scale": obj.two_hand_scale,
+            "selected_mode": obj.selected_mode.value,
+            "selected_mode_name": obj.get_mode_display_name(),
             "num_hands_detected": len(detected_hands),
             # Backward compatibility keys:
             "orb_x": obj_x,
@@ -260,6 +272,9 @@ class HolographicVFXApp:
                     if key in (27, ord("q"), ord("Q")):
                         print("\n[Info] Exit requested by user.")
                         break
+                    elif key in (ord("m"), ord("M")):
+                        _, msg = self.cycle_interaction_mode()
+                        print(f"[Info] {msg}")
                     elif key in (ord("c"), ord("C")):
                         new_theme = self.cycle_theme()
                         print(f"[Info] Switched theme to: {new_theme}")

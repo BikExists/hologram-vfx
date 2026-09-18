@@ -5,10 +5,18 @@ hand openness metric [0.0, 1.0], and palm centroid with smoothing.
 """
 
 from dataclasses import dataclass
+from enum import Enum
 import math
 from typing import Dict, List, Optional, Tuple
 import numpy as np
 from src.filters import EMAFilter, OneEuroFilter, PointFilter
+
+
+class InteractionMode(str, Enum):
+    """User-selectable interaction modes for multi-hand control."""
+
+    STANDARD = "STANDARD"
+    INDEPENDENT = "INDEPENDENT"
 
 
 class GestureEstimator:
@@ -207,4 +215,16 @@ def unwrap_angle_delta(curr_angle: float, prev_angle: float) -> float:
     while diff < -math.pi:
         diff += 2.0 * math.pi
     return diff
+
+
+def compute_hand_orientation(landmarks_px: List[Tuple[float, ...]]) -> float:
+    """Calculates longitudinal hand orientation angle in radians [-pi, pi] using Wrist (0) and Middle MCP (9).
+
+    Orientation points from wrist toward middle knuckle.
+    """
+    if not landmarks_px or len(landmarks_px) < 21:
+        return 0.0
+    wrist = landmarks_px[0]
+    middle_mcp = landmarks_px[9]
+    return math.atan2(middle_mcp[1] - wrist[1], middle_mcp[0] - wrist[0])
 

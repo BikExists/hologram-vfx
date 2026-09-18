@@ -81,55 +81,68 @@ class HUD:
         interaction_mode: str = "SINGLE_HAND",
         two_hand_scale: Optional[float] = None,
         rotation_deg: Optional[float] = None,
+        selected_mode_name: str = "STANDARD 2-HAND",
     ) -> None:
         """Renders HUD overlay elements with performance diagnostics and interaction telemetry."""
         h, w = frame.shape[:2]
         accent = theme.hud_accent
 
-        # Top-Left: Performance Telemetry, Active Object & Camera
-        panel_w = 215
-        panel_h = 86
+        # Top-Left: Performance Telemetry, Interaction Mode, Active Object & Camera
+        panel_w = 230
+        panel_h = 98
         self.draw_glass_rect(frame, 14, 14, panel_w, panel_h, accent, bg_alpha=0.5)
 
         fps_text = f"FPS: {fps:5.1f} ({frame_time_ms:4.1f}ms)"
         cv2.putText(
             frame, fps_text, (24, 28),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.36, (255, 255, 255), 1, cv2.LINE_AA
+            cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1, cv2.LINE_AA
         )
 
-        # Mode indicator
-        mode_text = f"MODE: {interaction_mode.replace('_', ' ')}"
-        mode_color = (120, 240, 255) if interaction_mode == "TWO_HANDS" else (accent if hand_detected else (140, 140, 140))
+        # Mode selector indicator
+        mode_color = (120, 240, 255) if "INDEP" in selected_mode_name else (255, 220, 100)
         cv2.putText(
-            frame, mode_text, (24, 42),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.34, mode_color, 1, cv2.LINE_AA
+            frame, f"MODE: {selected_mode_name} [M]", (24, 42),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.33, mode_color, 1, cv2.LINE_AA
+        )
+
+        # Active roles indicator
+        if interaction_mode == "INDEPENDENT_DUAL_HAND":
+            role_text = "ROLES: L=POS+ROT | R=SCL+CLR"
+            role_color = (140, 255, 200)
+        elif interaction_mode == "TWO_HANDS":
+            role_text = "ROLES: 2-HAND SCALE+ROT"
+            role_color = (120, 240, 255)
+        elif hand_detected:
+            role_text = "ROLES: 1-HAND (PRIMARY)"
+            role_color = (200, 230, 255)
+        else:
+            role_text = "ROLES: SEARCHING HANDS"
+            role_color = (130, 130, 130)
+
+        cv2.putText(
+            frame, role_text, (24, 56),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.30, role_color, 1, cv2.LINE_AA
         )
 
         # Status badge
         status_color = (0, 255, 120) if is_grabbed else (accent if hand_detected else (100, 100, 100))
         cv2.putText(
-            frame, f"STATUS: {state_label}", (24, 56),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.32, status_color, 1, cv2.LINE_AA
+            frame, f"STATE: {state_label}", (24, 70),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.31, status_color, 1, cv2.LINE_AA
         )
 
-        # Object indicator
+        # Object & Camera indicator
         obj_display = (object_name or "Orb").upper()
-        cv2.putText(
-            frame, f"OBJ: {obj_display} [1-3]", (24, 70),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.34, (255, 230, 140), 1, cv2.LINE_AA
-        )
-
-        # Camera source indicator
         cam_display = camera_name or "Camera 0"
         cv2.putText(
-            frame, f"CAM: {cam_display} [V]", (24, 84),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.32, (200, 230, 255), 1, cv2.LINE_AA
+            frame, f"OBJ: {obj_display} [1-3] | CAM: {cam_display} [V]", (24, 84),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.31, (220, 230, 255), 1, cv2.LINE_AA
         )
 
-        # Top-Center: Transient Notification (Object switch or Camera switch)
+        # Top-Center: Transient Notification (Object switch, Camera switch, or Mode switch)
         active_notif = object_notification or camera_notification
         if active_notif:
-            notif_w = min(w - 28, 320)
+            notif_w = min(w - 28, 340)
             notif_h = 28
             nx = (w - notif_w) // 2
             ny = 14
@@ -140,9 +153,10 @@ class HUD:
             )
 
         # Top-Right: Two-Hand Metrics or Single-Hand Openness Gauge Bar
-        if interaction_mode == "TWO_HANDS" and two_hand_scale is not None and rotation_deg is not None:
-            gauge_w = 180
-            gauge_h = 44
+        if interaction_mode in ("TWO_HANDS", "INDEPENDENT_DUAL_HAND") and two_hand_scale is not None and rotation_deg is not None:
+            is_indep = (interaction_mode == "INDEPENDENT_DUAL_HAND")
+            gauge_w = 195
+            gauge_h = 56 if is_indep else 44
             gx = w - gauge_w - 14
             gy = 14
             self.draw_glass_rect(frame, gx, gy, gauge_w, gauge_h, accent, bg_alpha=0.5)
@@ -155,6 +169,11 @@ class HUD:
                 frame, f"ROTATION: {int(rotation_deg):+d} deg", (gx + 12, gy + 34),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.36, (120, 240, 255), 1, cv2.LINE_AA
             )
+            if is_indep:
+                cv2.putText(
+                    frame, f"THEME: {theme.name.upper()}", (gx + 12, gy + 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.32, theme.inner_glow, 1, cv2.LINE_AA
+                )
         elif hand_detected and openness is not None:
             gauge_w = 180
             gauge_h = 44
@@ -192,7 +211,7 @@ class HUD:
             hy = h - help_h - 10
             self.draw_glass_rect(frame, hx, hy, help_w, help_h, accent, bg_alpha=0.6)
 
-            controls_str = "OBJ: 1=ORB 2=CUBE 3=PLANET | 1-HAND: GRAB | 2-HAND: SCALE+ROT | THEME [C] | CAM [V]"
+            controls_str = "[M] MODE | 1-3 OBJ | 1-HAND: GRAB | 2-HAND: CTRL | [C] THEME | [V] CAM"
             cv2.putText(
                 frame, controls_str, (hx + 10, hy + 17),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.33, (220, 240, 255), 1, cv2.LINE_AA

@@ -9,9 +9,10 @@ from abc import ABC, abstractmethod
 from typing import Callable, List, Optional, Tuple, Union
 import numpy as np
 
+from src.gestures import InteractionMode
 from src.hand_tracker import HandData
 from src.interaction import OrbController
-from src.vfx.color_themes import ColorTheme, get_theme
+from src.vfx.color_themes import ColorTheme, THEMES, get_theme
 
 
 class BaseHolographicObject(ABC):
@@ -43,6 +44,8 @@ class BaseHolographicObject(ABC):
             default_radius=default_radius,
             on_grab=on_grab or self._internal_on_grab,
             on_release=on_release or self._internal_on_release,
+            on_theme_change=self.set_theme,
+            initial_theme=theme_name,
         )
 
     # -------------------------------------------------------------------------
@@ -109,8 +112,25 @@ class BaseHolographicObject(ABC):
 
     @property
     def interaction_mode(self) -> str:
-        """Current interaction mode ('NO_HANDS', 'SINGLE_HAND', 'TWO_HANDS')."""
+        """Current interaction mode ('NO_HANDS', 'SINGLE_HAND', 'TWO_HANDS', 'INDEPENDENT_DUAL_HAND')."""
         return self.controller.interaction_mode
+
+    @property
+    def selected_mode(self) -> InteractionMode:
+        """User-selected interaction mode (STANDARD or INDEPENDENT)."""
+        return self.controller.selected_mode
+
+    @selected_mode.setter
+    def selected_mode(self, mode: InteractionMode) -> None:
+        self.controller.selected_mode = mode
+
+    def cycle_interaction_mode(self) -> InteractionMode:
+        """Cycles between STANDARD and INDEPENDENT interaction modes."""
+        return self.controller.cycle_interaction_mode()
+
+    def get_mode_display_name(self) -> str:
+        """Human-readable display name for selected interaction mode."""
+        return self.controller.get_mode_display_name()
 
     @property
     def theme(self) -> ColorTheme:
@@ -125,8 +145,13 @@ class BaseHolographicObject(ABC):
         """Updates color palette."""
         if isinstance(theme_or_name, ColorTheme):
             self._theme = theme_or_name
+            for k, v in THEMES.items():
+                if v == theme_or_name or v.name == theme_or_name.name:
+                    self.controller.current_theme_key = k
+                    break
         else:
             self._theme = get_theme(str(theme_or_name))
+            self.controller.current_theme_key = str(theme_or_name)
 
     def resize_viewport(self, width: int, height: int) -> None:
         """Adapts boundary dimensions and rest anchor when camera resolution changes."""
@@ -139,7 +164,7 @@ class BaseHolographicObject(ABC):
         self.controller.reset_position()
 
     def transfer_state_from(self, other: "BaseHolographicObject") -> None:
-        """Seamlessly inherits spatial position, scale, velocity, rotation, and theme from another object."""
+        """Seamlessly inherits spatial position, scale, velocity, rotation, mode, and theme from another object."""
         self.controller.x = other.controller.x
         self.controller.y = other.controller.y
         self.controller.rest_x = other.controller.rest_x
@@ -149,11 +174,22 @@ class BaseHolographicObject(ABC):
         self.controller.current_radius = other.controller.current_radius
         self.controller.target_radius = other.controller.target_radius
         self.controller.rotation = other.controller.rotation
+        self.controller.raw_rotation = other.controller.raw_rotation
         self.controller.two_hand_scale = other.controller.two_hand_scale
+        self.controller.selected_mode = other.controller.selected_mode
         self.controller.interaction_mode = other.controller.interaction_mode
         self.controller.is_grabbed = other.controller.is_grabbed
         self.controller.grab_offset_x = other.controller.grab_offset_x
         self.controller.grab_offset_y = other.controller.grab_offset_y
+        self.controller.primary_offset_x = other.controller.primary_offset_x
+        self.controller.primary_offset_y = other.controller.primary_offset_y
+        self.controller.prev_primary_angle = other.controller.prev_primary_angle
+        self.controller.ref_secondary_openness = other.controller.ref_secondary_openness
+        self.controller.prev_secondary_angle = other.controller.prev_secondary_angle
+        self.controller.accum_secondary_angle = other.controller.accum_secondary_angle
+        self.controller.base_theme_idx = other.controller.base_theme_idx
+        self.controller.last_theme_step = other.controller.last_theme_step
+        self.controller.current_theme_key = other.controller.current_theme_key
         self.set_theme(other.theme)
         self.resize_viewport(other.w, other.h)
 

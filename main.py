@@ -118,6 +118,7 @@ def main():
     print(" Controls:")
     print("   [Pinch]     : Grab and move holographic object")
     print("   [Open/Close]: Expand / shrink object size")
+    print("   [M]         : Cycle mode: Standard 2-Hand vs Independent Dual-Hand")
     print("   [1 / 2 / 3] : Switch object: 1=Orb, 2=Cube, 3=Planet")
     print("   [V]         : Switch camera input source")
     print("   [C]         : Cycle color themes")
