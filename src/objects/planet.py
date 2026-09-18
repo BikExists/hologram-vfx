@@ -64,20 +64,20 @@ class HolographicPlanet(BaseHolographicObject):
 
     def update(
         self,
-        hand_data: Optional[HandData],
+        hands: Union[Optional[HandData], List[HandData]] = None,
         dt: Optional[float] = None,
     ) -> Tuple[float, float, float]:
-        """Updates kinematics, planetary axial rotation, moon orbit, and particles."""
+        """Updates kinematics, planetary axial rotation, two-hand transform, moon orbit, and particles."""
         now = time.perf_counter()
         if dt is None:
             dt = max(0.001, min(0.1, now - self.last_update))
         self.last_update = now
 
         # Update position and size via common controller
-        x, y, radius = self.controller.update(hand_data, dt=dt)
+        x, y, radius = self.controller.update(hands, dt=dt)
 
         # Planetary rotation and moon orbit
-        speed_mult = 1.7 if self.is_grabbed else 1.0
+        speed_mult = 1.7 if self.is_grabbed else (0.6 if self.interaction_mode == "TWO_HANDS" else 1.0)
         self.spin_angle = (self.spin_angle + 0.65 * speed_mult * dt) % (2.0 * math.pi)
         self.moon_angle = (self.moon_angle + 1.25 * speed_mult * dt) % (2.0 * math.pi)
 
@@ -121,6 +121,11 @@ class HolographicPlanet(BaseHolographicObject):
         cv2.polylines(frame, [pts_arr], False, color_bgr, 3, cv2.LINE_AA)
         cv2.polylines(frame, [pts_arr], False, (255, 255, 255), 1, cv2.LINE_AA)
 
+    @property
+    def effective_tilt_deg(self) -> float:
+        """Composite axial tilt in degrees including two-hand rotation."""
+        return (self.axial_tilt_deg + math.degrees(self.rotation)) % 360.0
+
     def _draw_rings_half(
         self,
         frame: np.ndarray,
@@ -129,13 +134,13 @@ class HolographicPlanet(BaseHolographicObject):
         r: float,
         is_front: bool,
     ) -> None:
-        """Renders tilted planetary rings.
+        """Draws depth-sorted halves of Saturn-like planetary rings.
 
         If is_front is False, renders the back half (angles 180..360) behind planet.
         If is_front is True, renders the front half (angles 0..180) in front of planet.
         """
         center = (int(cx), int(cy))
-        tilt = self.axial_tilt_deg
+        tilt = self.effective_tilt_deg
 
         start_angle = 0 if is_front else 180
         end_angle = 180 if is_front else 360
@@ -211,7 +216,7 @@ class HolographicPlanet(BaseHolographicObject):
         cv2.circle(frame, center, r_int, self.theme.ring_primary, 2, cv2.LINE_AA)
 
         # Rotating surface meridians and latitude bands
-        tilt = self.axial_tilt_deg
+        tilt = self.effective_tilt_deg
         # 3 latitude bands
         for lat_ratio in (-0.55, -0.25, 0.0, 0.25, 0.55):
             band_y = int(r * lat_ratio)
@@ -234,7 +239,7 @@ class HolographicPlanet(BaseHolographicObject):
 
         # 6. Orbiting Moon / Satellite
         moon_dist = r * 2.7
-        tilt_rad = math.radians(self.axial_tilt_deg - 15.0)
+        tilt_rad = math.radians(self.effective_tilt_deg - 15.0)
         # 3D inclined orbit coordinates
         mx_local = moon_dist * math.cos(self.moon_angle)
         my_local = (moon_dist * 0.42) * math.sin(self.moon_angle)

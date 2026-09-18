@@ -4,6 +4,7 @@ Calculates scale-invariant pinch detection with hysteresis,
 hand openness metric [0.0, 1.0], and palm centroid with smoothing.
 """
 
+from dataclasses import dataclass
 import math
 from typing import Dict, List, Optional, Tuple
 import numpy as np
@@ -170,3 +171,40 @@ class GestureEstimator:
             "raw_openness": float(raw_openness),
             "hand_scale_px": float(hand_scale_px),
         }
+
+
+@dataclass
+class TwoHandTransformState:
+    """Metrics derived from two tracked hands for simultaneous scale and rotation."""
+
+    distance: float
+    angle: float
+    midpoint: Tuple[float, float]
+    scale_ratio: float = 1.0
+    rotation_delta: float = 0.0
+
+
+def compute_two_hand_distance(pt_a: Tuple[float, float], pt_b: Tuple[float, float]) -> float:
+    """Calculates Euclidean pixel distance between two hand anchors."""
+    return math.hypot(pt_b[0] - pt_a[0], pt_b[1] - pt_a[1])
+
+
+def compute_two_hand_angle(pt_a: Tuple[float, float], pt_b: Tuple[float, float]) -> float:
+    """Calculates orientation angle in radians from pt_a to pt_b in [-pi, pi]."""
+    return math.atan2(pt_b[1] - pt_a[1], pt_b[0] - pt_a[0])
+
+
+def compute_two_hand_midpoint(pt_a: Tuple[float, float], pt_b: Tuple[float, float]) -> Tuple[float, float]:
+    """Calculates the midpoint anchor between two hands in pixel coordinates."""
+    return ((pt_a[0] + pt_b[0]) * 0.5, (pt_a[1] + pt_b[1]) * 0.5)
+
+
+def unwrap_angle_delta(curr_angle: float, prev_angle: float) -> float:
+    """Computes shortest signed angular difference in [-pi, pi], correctly handling wraparound across +/-180 deg."""
+    diff = curr_angle - prev_angle
+    while diff > math.pi:
+        diff -= 2.0 * math.pi
+    while diff < -math.pi:
+        diff += 2.0 * math.pi
+    return diff
+

@@ -6,7 +6,7 @@ viewport constraints, theme propagation, and visual compositing.
 """
 
 from abc import ABC, abstractmethod
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 import numpy as np
 
 from src.hand_tracker import HandData
@@ -94,6 +94,25 @@ class BaseHolographicObject(ABC):
         return self.controller.is_hovered
 
     @property
+    def rotation(self) -> float:
+        """Current rotation angle in radians."""
+        return self.controller.rotation
+
+    @rotation.setter
+    def rotation(self, value: float) -> None:
+        self.controller.rotation = float(value)
+
+    @property
+    def two_hand_scale(self) -> float:
+        """Relative scale multiplier derived from two-hand distance."""
+        return self.controller.two_hand_scale
+
+    @property
+    def interaction_mode(self) -> str:
+        """Current interaction mode ('NO_HANDS', 'SINGLE_HAND', 'TWO_HANDS')."""
+        return self.controller.interaction_mode
+
+    @property
     def theme(self) -> ColorTheme:
         """Active color theme."""
         return self._theme
@@ -120,7 +139,7 @@ class BaseHolographicObject(ABC):
         self.controller.reset_position()
 
     def transfer_state_from(self, other: "BaseHolographicObject") -> None:
-        """Seamlessly inherits spatial position, scale, velocity, and theme from another object."""
+        """Seamlessly inherits spatial position, scale, velocity, rotation, and theme from another object."""
         self.controller.x = other.controller.x
         self.controller.y = other.controller.y
         self.controller.rest_x = other.controller.rest_x
@@ -129,13 +148,16 @@ class BaseHolographicObject(ABC):
         self.controller.vy = other.controller.vy
         self.controller.current_radius = other.controller.current_radius
         self.controller.target_radius = other.controller.target_radius
+        self.controller.rotation = other.controller.rotation
+        self.controller.two_hand_scale = other.controller.two_hand_scale
+        self.controller.interaction_mode = other.controller.interaction_mode
         self.controller.is_grabbed = other.controller.is_grabbed
         self.controller.grab_offset_x = other.controller.grab_offset_x
         self.controller.grab_offset_y = other.controller.grab_offset_y
         self.set_theme(other.theme)
         self.resize_viewport(other.w, other.h)
 
-    def get_state_label(self, hand_detected: bool) -> str:
+    def get_state_label(self, hand_detected: bool = False) -> str:
         """Human-readable interaction state label for HUD."""
         return self.controller.get_state_label(hand_detected)
 
@@ -159,7 +181,7 @@ class BaseHolographicObject(ABC):
     @abstractmethod
     def update(
         self,
-        hand_data: Optional[HandData],
+        hands: Union[Optional[HandData], List[HandData]] = None,
         dt: Optional[float] = None,
     ) -> Tuple[float, float, float]:
         """Updates kinematics, internal rotations, and dynamics. Returns (x, y, radius)."""
@@ -174,3 +196,4 @@ class BaseHolographicObject(ABC):
     ) -> None:
         """Composites the holographic object visual effects onto the video frame."""
         pass
+

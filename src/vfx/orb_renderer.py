@@ -168,12 +168,13 @@ class OrbRenderer:
         cy: float,
         radius: float,
         t: float,
+        extra_rotation_deg: float = 0.0,
     ) -> None:
         """Draws rotating 3D gyroscopic holographic rings and dashed reticles."""
         center = (int(cx), int(cy))
 
         # Ring 1: Fast rotating equatorial ring
-        angle1 = int((t * 45.0) % 360)
+        angle1 = int((t * 45.0 + extra_rotation_deg) % 360)
         axes1 = (int(radius * 1.35), int(radius * 0.45))
         cv2.ellipse(frame, center, axes1, angle1, 0, 360, self.theme.ring_primary, 1, cv2.LINE_AA)
 
@@ -185,12 +186,12 @@ class OrbRenderer:
             cv2.circle(frame, (tx, ty), 2, (255, 255, 255), -1, cv2.LINE_AA)
 
         # Ring 2: Polar inclined ring rotating in opposite direction
-        angle2 = int((-t * 30.0 + 60.0) % 360)
+        angle2 = int((-t * 30.0 + 60.0 - extra_rotation_deg * 0.7) % 360)
         axes2 = (int(radius * 1.55), int(radius * 0.55))
         cv2.ellipse(frame, center, axes2, angle2, 0, 360, self.theme.ring_secondary, 1, cv2.LINE_AA)
 
         # Ring 3: Segmented sci-fi reticle ring (dashed arcs)
-        angle3 = int((t * 20.0 + 120.0) % 360)
+        angle3 = int((t * 20.0 + 120.0 + extra_rotation_deg) % 360)
         axes3 = (int(radius * 1.15), int(radius * 1.15))
         # Draw 4 dashed arcs
         for arc_start in (0, 90, 180, 270):
@@ -209,6 +210,7 @@ class OrbRenderer:
         is_grabbed: bool = False,
         pinch_pt: Optional[Tuple[float, float]] = None,
         dt: Optional[float] = None,
+        rotation_deg: float = 0.0,
     ) -> None:
         """Composites the full holographic VFX stack onto the frame."""
         now = time.perf_counter()
@@ -279,7 +281,7 @@ class OrbRenderer:
             frame[roi_y1:roi_y2, roi_x1:roi_x2] = blended_roi
 
         # 4. Render Gyroscopic Orbital Rings
-        self.draw_orbital_rings(frame, cx, cy, radius, elapsed)
+        self.draw_orbital_rings(frame, cx, cy, radius, elapsed, extra_rotation_deg=rotation_deg)
 
         # 5. Render Orbiting 3D Particles
         self.particles.render(frame, cx, cy, radius, self.theme.particle)

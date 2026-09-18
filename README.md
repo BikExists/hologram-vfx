@@ -31,6 +31,11 @@ A high-performance real-time interactive computer vision application that tracks
   - **3 → Holographic Planet**: A planetary body with atmospheric limb-darkening glow, rotating latitude bands and wireframe meridians, tilted concentric Saturn-like rings with depth-sorted front/back occlusion, and an orbiting moon with a particle dust trail.
   - **Seamless State Transfer**: Preserves spatial position, velocity, openness scale, and theme when switching between objects at runtime.
   - **Unified Object Contract**: Extensible base class ensuring all current and future holographic objects operate in unified pixel coordinates with full pinch-grab, spring physics, and openness scaling support.
+- **Two-Hand Holographic Object Transform Interaction**:
+  - **Inter-Hand Distance $\rightarrow$ Scale**: Dynamic scale manipulation based on the relative distance between both detected hands, clamped safely to viewport boundaries.
+  - **Inter-Hand Orientation $\rightarrow$ Rotation**: Dynamic rotation calculated from the angular vector between both hands, with continuous angle delta unwrapping to prevent $\pm 180^\circ$ inversion jumps.
+  - **Universal Object Integration**: Consistently drives 3D gyroscopic rings on the Orb, 3D Euler rotation on the Cyber Cube, and Saturnian ring tilt and meridian orientation on the Planet.
+  - **Seamless Multi-Mode Transitions**: Zero-jump baseline anchoring when engaging two hands, transform preservation when releasing to one or zero hands, and independent gesture filters per hand to avoid crosstalk.
 - **Multiple Color Themes**:
   - **Cyber Cyan** (Classic electric hologram)
   - **Solar Flare** (Warm golden amber star)
@@ -73,6 +78,7 @@ antigravity/
 │   ├── test_vfx.py         # VFX rendering, particles, color themes, and ROI clipping tests
 │   ├── test_interaction.py # Orb kinematics, grab/release states, and viewport boundaries
 │   ├── test_objects.py     # Holographic object contract, switching, and rendering tests
+│   ├── test_two_hand_interaction.py # Two-hand distance scaling, rotation, unwrapping, and transitions
 │   └── test_integration.py # Headless end-to-end synthetic pipeline integration test
 ├── main.py                 # CLI entry point supporting live camera, synthetic, and benchmark modes
 ├── requirements.txt        # Frozen package dependencies
@@ -154,10 +160,12 @@ python main.py --benchmark 120 --synthetic --headless
 
 | Key / Gesture | Action |
 |---|---|
-| **Pinch (Thumb + Index)** | Grab and control the active holographic object |
+| **Pinch (Thumb + Index)** | Grab and control the active holographic object (Single Hand mode) |
 | **Move Hand** | Move the object smoothly across the viewport |
 | **Open Hand** | Expand the object's size up to maximum diameter |
 | **Close Hand (Fist)** | Shrink the object down to a compact core |
+| **Two Hands (Distance)** | Expand or shrink object scale dynamically based on inter-hand distance |
+| **Two Hands (Angle)** | Rotate object smoothly around its center via relative hand orientation |
 | **1 / 2 / 3** | Switch active object: `1 = Energy Orb`, `2 = Cyber Cube`, `3 = Planet` |
 | **V** | Cycle to the next available camera source |
 | **4-9** | Jump directly to camera device index 4-9 |

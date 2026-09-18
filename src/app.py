@@ -4,8 +4,9 @@ Orchestrates webcam capture, device switching, hand tracking, gesture estimation
 physics simulation, holographic rendering, and interactive UI.
 """
 
+import math
 import time
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 import cv2
 import numpy as np
 
@@ -138,20 +139,21 @@ class HolographicVFXApp:
         self.fps = sum(self._fps_history) / len(self._fps_history)
         self.frame_time_ms = dt * 1000.0
 
-        # 2. Hand Tracking
-        hand_data: Optional[HandData] = self.tracker.process_frame(frame, timestamp=now)
-        hand_detected = hand_data is not None
+        # 2. Hand Tracking (Multi-Hand detection up to 2 hands)
+        detected_hands: List[HandData] = self.tracker.process_frame_multi(frame, timestamp=now)
+        hand_data: Optional[HandData] = self.tracker.last_valid_hand
+        hand_detected = len(detected_hands) > 0
 
-        # 3. Update Active Holographic Object Kinematics
+        # 3. Update Active Holographic Object Kinematics (Passes all detected hands)
         obj = self.active_object
-        obj_x, obj_y, obj_radius = obj.update(hand_data, dt=dt)
+        obj_x, obj_y, obj_radius = obj.update(detected_hands, dt=dt)
 
-        # 4. Render Holographic Landmarks (if toggled)
+        # 4. Render Holographic Landmarks for all detected hands (if toggled)
         if hand_detected and self.hud.show_landmarks:
-            self.tracker.draw_holographic_landmarks(frame, hand_data, obj.theme.ring_primary)
+            self.tracker.draw_holographic_landmarks(frame, detected_hands, obj.theme.ring_primary)
 
         # 5. Render Active Holographic Object VFX Stack
-        pinch_pt = hand_data.pinch_point_px if hand_detected else None
+        pinch_pt = hand_data.pinch_point_px if (hand_data and hand_data.is_pinching) else (detected_hands[0].pinch_point_px if detected_hands else None)
         obj.render(
             frame=frame,
             pinch_pt=pinch_pt,
@@ -160,8 +162,8 @@ class HolographicVFXApp:
 
         # 6. Render Sci-Fi HUD Overlay
         state_str = obj.get_state_label(hand_detected)
-        openness_val = hand_data.openness if hand_detected else None
-        is_pinching = hand_data.is_pinching if hand_detected else False
+        openness_val = hand_data.openness if hand_data else (detected_hands[0].openness if detected_hands else None)
+        is_pinching = hand_data.is_pinching if hand_data else any(h.is_pinching for h in detected_hands)
 
         # Active camera and object switch notifications
         cur_dev = self.camera_selector.get_current_device()
@@ -173,6 +175,7 @@ class HolographicVFXApp:
         if self.object_manager.status_message and (now - self.object_manager.status_message_time) < 2.5:
             obj_notif = self.object_manager.status_message
 
+        rot_deg = math.degrees(obj.rotation)
         self.hud.render(
             frame=frame,
             fps=self.fps,
@@ -187,6 +190,9 @@ class HolographicVFXApp:
             camera_notification=cam_notif,
             object_name=obj.name,
             object_notification=obj_notif,
+            interaction_mode=obj.interaction_mode,
+            two_hand_scale=obj.two_hand_scale,
+            rotation_deg=rot_deg,
         )
 
         telemetry = {
@@ -196,6 +202,11 @@ class HolographicVFXApp:
             "object_x": obj_x,
             "object_y": obj_y,
             "object_radius": obj_radius,
+            "rotation_rad": obj.rotation,
+            "rotation_deg": rot_deg,
+            "interaction_mode": obj.interaction_mode,
+            "two_hand_scale": obj.two_hand_scale,
+            "num_hands_detected": len(detected_hands),
             # Backward compatibility keys:
             "orb_x": obj_x,
             "orb_y": obj_y,

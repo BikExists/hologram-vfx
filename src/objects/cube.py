@@ -79,20 +79,20 @@ class HolographicCube(BaseHolographicObject):
 
     def update(
         self,
-        hand_data: Optional[HandData],
+        hands: Union[Optional[HandData], List[HandData]] = None,
         dt: Optional[float] = None,
     ) -> Tuple[float, float, float]:
-        """Updates kinematics, continuous 3D rotation, and particles."""
+        """Updates kinematics, continuous 3D rotation, two-hand transform, and particles."""
         now = time.perf_counter()
         if dt is None:
             dt = max(0.001, min(0.1, now - self.last_update))
         self.last_update = now
 
         # Update position and size via common controller
-        x, y, radius = self.controller.update(hand_data, dt=dt)
+        x, y, radius = self.controller.update(hands, dt=dt)
 
         # Continuous 3D rotation
-        speed_mult = 1.6 if self.is_grabbed else 1.0
+        speed_mult = 1.6 if self.is_grabbed else (0.5 if self.interaction_mode == "TWO_HANDS" else 1.0)
         self.pitch = (self.pitch + 0.65 * speed_mult * dt) % (2.0 * math.pi)
         self.yaw = (self.yaw + 0.95 * speed_mult * dt) % (2.0 * math.pi)
         self.roll = (self.roll + 0.45 * speed_mult * dt) % (2.0 * math.pi)
@@ -104,10 +104,11 @@ class HolographicCube(BaseHolographicObject):
         return x, y, radius
 
     def _get_rotation_matrix(self) -> np.ndarray:
-        """Computes 3D composite rotation matrix (Roll * Yaw * Pitch)."""
+        """Computes 3D composite rotation matrix (Roll * Yaw * Pitch) incorporating two-hand rotation."""
+        effective_roll = (self.roll + self.rotation) % (2.0 * math.pi)
         cp, sp = math.cos(self.pitch), math.sin(self.pitch)
         cy, sy = math.cos(self.yaw), math.sin(self.yaw)
-        cr, sr = math.cos(self.roll), math.sin(self.roll)
+        cr, sr = math.cos(effective_roll), math.sin(effective_roll)
 
         Rx = np.array([[1, 0, 0], [0, cp, -sp], [0, sp, cp]], dtype=np.float32)
         Ry = np.array([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]], dtype=np.float32)

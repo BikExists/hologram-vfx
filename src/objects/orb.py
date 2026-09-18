@@ -5,7 +5,8 @@ Reference holographic object implementation providing multi-layer exponential gl
 and shockwave bursts.
 """
 
-from typing import Callable, Optional, Tuple, Union
+import math
+from typing import Callable, List, Optional, Tuple, Union
 import numpy as np
 
 from src.hand_tracker import HandData
@@ -50,11 +51,11 @@ class HolographicOrb(BaseHolographicObject):
 
     def update(
         self,
-        hand_data: Optional[HandData],
+        hands: Union[Optional[HandData], List[HandData]] = None,
         dt: Optional[float] = None,
     ) -> Tuple[float, float, float]:
-        """Updates orb kinematics, openness scaling, and spring physics."""
-        return self.controller.update(hand_data, dt=dt)
+        """Updates orb kinematics, openness scaling, two-hand transform, and spring physics."""
+        return self.controller.update(hands, dt=dt)
 
     def render(
         self,
@@ -62,7 +63,7 @@ class HolographicOrb(BaseHolographicObject):
         pinch_pt: Optional[Tuple[float, float]] = None,
         dt: Optional[float] = None,
     ) -> None:
-        """Composites the full holographic orb VFX stack onto the frame."""
+        """Composites the full holographic orb VFX stack onto the frame with synchronized rotation."""
         self.renderer.render(
             frame=frame,
             center=(self.x, self.y),
@@ -70,4 +71,6 @@ class HolographicOrb(BaseHolographicObject):
             is_grabbed=self.is_grabbed,
             pinch_pt=pinch_pt,
             dt=dt,
+            rotation_deg=math.degrees(self.rotation),
         )
+
