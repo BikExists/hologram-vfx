@@ -121,8 +121,11 @@ def inspect_windows_camera_devices() -> List[Dict[str, Any]]:
                 except Exception:
                     pass
 
-                if not name:
-                    name = "Camera" if not is_software_bus else "Virtual Camera"
+                if not name or name == "Generic software device":
+                    if "VCAMDEVAPI" in raw_upper:
+                        name = "Phone Link / Connected Camera"
+                    elif not name:
+                        name = "Camera" if not is_software_bus else "Virtual Camera"
 
                 name_lower = name.lower()
                 is_virtual_by_name = any(kw in name_lower for kw in VIRTUAL_CAMERA_KEYWORDS)

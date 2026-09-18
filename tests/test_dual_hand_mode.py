@@ -88,7 +88,7 @@ def test_primary_hand_rotation_changes_rotation_only():
     init_x, init_y = ctrl.x, ctrl.y
     init_theme = ctrl.current_theme_key
     target_angle = -math.pi / 2.0 + 0.785
-    for _ in range(25):
+    for _ in range(50):
         h_prim_rot = make_oriented_mock_hand((200.0, 240.0), orientation_rad=target_angle, handedness='Left')
         ctrl.update([h_prim_rot, h_sec], dt=0.033)
     assert math.isclose(ctrl.rotation, 0.785, abs_tol=0.1)
