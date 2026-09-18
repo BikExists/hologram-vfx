@@ -258,7 +258,8 @@ class TestUIManagerAndMenuIsolation:
         manager.dismiss_welcome()
         assert manager.current_state == UIState.RUNNING
 
-        hand = make_dummy_hand(palm_x=300.0, palm_y=200.0, openness=0.95, is_pinching=False)
+        # Hand positioned in corner MENU trigger zone
+        hand = make_dummy_hand(palm_x=570.0, palm_y=30.0, openness=0.95, is_pinching=False)
 
         # Dwell for 0.8 seconds (25 steps at 0.033)
         for _ in range(30):

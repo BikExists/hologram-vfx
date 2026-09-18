@@ -80,8 +80,19 @@ class HolographicMenu:
         frame_width: int,
         frame_height: int,
         dt: float = 0.033,
+        pending_object_id: Optional[int] = None,
+        pending_mode_name: Optional[str] = None,
+        pending_theme_name: Optional[str] = None,
+        pending_camera_idx: Optional[int] = None,
+        pending_camera_name: Optional[str] = None,
     ) -> Optional[Tuple[str, Any]]:
         """Updates menu layout, hit tests cursor, applies scroll, and handles button selection."""
+        # Determine effective selection for visual feedback (prefer staged pending changes)
+        display_obj_id = pending_object_id if pending_object_id is not None else active_object_id
+        display_mode = pending_mode_name if pending_mode_name is not None else active_mode_name
+        display_theme = pending_theme_name if pending_theme_name is not None else active_theme_name
+        display_cam_name = pending_camera_name if pending_camera_name is not None else active_camera_name
+
         # 1. Update smooth scroll with exponential decay
         self.handle_secondary_hand_scroll(secondary_hand_y, dt=dt)
         alpha = min(1.0, 14.0 * dt)
@@ -116,7 +127,7 @@ class HolographicMenu:
 
         # Section: OBJECTS
         for obj_id, obj_label in objects_def:
-            is_act = (obj_id == active_object_id)
+            is_act = (obj_id == display_obj_id)
             items_list.append(
                 MenuItem(
                     id=f"obj_{obj_id}",
@@ -137,7 +148,7 @@ class HolographicMenu:
         items_list.append(
             MenuItem(
                 id="mode_toggle",
-                label=f"MODE: {active_mode_name.upper()}",
+                label=f"MODE: {display_mode.upper()}",
                 action_type="MODE",
                 action_value=None,
                 x=start_x,
@@ -153,7 +164,7 @@ class HolographicMenu:
         items_list.append(
             MenuItem(
                 id="theme_cycle",
-                label=f"THEME: {active_theme_name.upper()}",
+                label=f"THEME: {display_theme.upper()}",
                 action_type="THEME",
                 action_value=None,
                 x=start_x,
@@ -168,7 +179,10 @@ class HolographicMenu:
         # Section: DYNAMIC CAMERAS (Dynamically generated from CameraSelector devices)
         if available_cameras:
             for cam_idx, cam in enumerate(available_cameras):
-                is_active_cam = (cam.name == active_camera_name)
+                if pending_camera_idx is not None:
+                    is_active_cam = (cam_idx == pending_camera_idx)
+                else:
+                    is_active_cam = (cam.name == display_cam_name)
                 items_list.append(
                     MenuItem(
                         id=f"cam_{cam_idx}",
@@ -187,7 +201,7 @@ class HolographicMenu:
             items_list.append(
                 MenuItem(
                     id="cam_cycle",
-                    label=f"CAM: {active_camera_name}",
+                    label=f"CAM: {display_cam_name}",
                     action_type="CAMERA",
                     action_value=None,
                     x=start_x,

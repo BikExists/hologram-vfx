@@ -122,7 +122,7 @@ def main():
     print("-" * 60)
     print(" Controls:")
     print("   [Pinch]     : Grab & move holographic object / Pinch-to-click UI")
-    print("   [Palm Dwell]: Hold open palm / peace sign to toggle Holographic Menu")
+    print("   [Menu Dwell]: Move open palm to top-right [ MENU ] corner to toggle menu")
     print("   [2nd Hand]  : Scroll menu up / down with secondary hand")
     print("   [1 .. 6]    : Switch object (Orb, Cube, Planet, Ghost Orchid, Bhondu, Jellyfish)")
     print("   [M]         : Toggle touchless holographic menu")

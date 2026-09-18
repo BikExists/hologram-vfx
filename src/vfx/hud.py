@@ -83,7 +83,8 @@ class HUD:
         gauge_w = int(195 * scale) if is_two_hand else int(180 * scale)
         gauge_h = int(56 * scale) if is_indep else int(44 * scale)
         gx = w - gauge_w - margin
-        gy = margin
+        btn_h = int(34 * scale)
+        gy = margin + btn_h + int(8 * scale)
         tr_rect = (gx, gy, gx + gauge_w, gy + gauge_h)
 
         notif_rect = (0, 0, 0, 0)

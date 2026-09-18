@@ -59,17 +59,6 @@ class HolographicVFXApp:
         self.tracker = HandTracker()
         self.hud = HUD()
 
-        # Holographic Touchless UI Subsystem (Welcome, Menu, Cursor, State Machine)
-        self.ui = UIManager(
-            on_select_object=self.select_object,
-            on_cycle_mode=self.cycle_interaction_mode,
-            on_cycle_theme=self.cycle_theme,
-            on_switch_camera=self.switch_camera,
-            on_switch_camera_idx=self.select_camera,
-        )
-        if skip_welcome:
-            self.ui.dismiss_welcome()
-
         # Universal holographic object management system (Orb=1..6)
         self.object_manager = HolographicObjectManager(
             frame_width=width,
@@ -79,6 +68,18 @@ class HolographicVFXApp:
             on_grab=self._on_object_grabbed,
             on_release=self._on_object_released,
         )
+
+        # Holographic Touchless UI Subsystem (Welcome, Menu, Cursor, State Machine)
+        self.ui = UIManager(
+            on_select_object=self.select_object,
+            on_cycle_mode=self.cycle_interaction_mode,
+            on_cycle_theme=self.cycle_theme,
+            on_set_theme=self.object_manager.set_theme,
+            on_switch_camera=self.switch_camera,
+            on_switch_camera_idx=self.select_camera,
+        )
+        if skip_welcome:
+            self.ui.dismiss_welcome()
 
         # Theme cycling
         self.theme_idx = THEME_KEYS.index(theme_name) if theme_name in THEME_KEYS else 0
@@ -196,7 +197,7 @@ class HolographicVFXApp:
         # 4. Update Active Holographic Object Kinematics (Passes hands unless UI owns input)
         obj = self.active_object
         if self.ui.owns_hand_input:
-            obj_x, obj_y, obj_radius = obj.update([], dt=dt)
+            obj_x, obj_y, obj_radius = obj.x, obj.y, obj.current_radius
         else:
             obj_x, obj_y, obj_radius = obj.update(detected_hands, dt=dt)
 
@@ -206,13 +207,14 @@ class HolographicVFXApp:
 
         # 6. Render Active Holographic Object VFX Stack
         pinch_pt = None
+        render_dt = 0.0 if self.ui.owns_hand_input else dt
         if not self.ui.owns_hand_input:
             pinch_pt = hand_data.pinch_point_px if (hand_data and hand_data.is_pinching) else (detected_hands[0].pinch_point_px if detected_hands else None)
 
         obj.render(
             frame=frame,
             pinch_pt=pinch_pt,
-            dt=dt,
+            dt=render_dt,
         )
 
         # 7. Render Sci-Fi HUD Overlay (suppressed during welcome)
