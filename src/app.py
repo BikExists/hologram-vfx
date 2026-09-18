@@ -15,6 +15,7 @@ from src.hand_tracker import HandTracker, HandData
 from src.objects import HolographicObjectManager, BaseHolographicObject
 from src.vfx.color_themes import THEME_KEYS, get_theme
 from src.vfx.hud import HUD
+from src.vfx.presenter import AspectPreservingPresenter
 
 
 class HolographicVFXApp:
@@ -33,8 +34,13 @@ class HolographicVFXApp:
     ):
         self.width = width
         self.height = height
+        self.aspect_ratio: float = width / float(height) if height > 0 else 4.0 / 3.0
         self.synthetic_mode = synthetic_mode
         self.headless = headless
+        self._camera_resolution_changed: bool = True
+
+        # Aspect-ratio-preserving window presentation subsystem
+        self.presenter = AspectPreservingPresenter()
 
         # Camera selection subsystem
         self.camera_selector = CameraSelector(
@@ -109,7 +115,10 @@ class HolographicVFXApp:
 
     def switch_camera(self) -> Tuple[bool, str]:
         """Switches to the next detected camera device."""
-        return self.camera_selector.switch_to_next()
+        ok, msg = self.camera_selector.switch_to_next()
+        if ok:
+            self._camera_resolution_changed = True
+        return ok, msg
 
     def cycle_interaction_mode(self) -> Tuple[object, str]:
         """Cycles between STANDARD and INDEPENDENT interaction modes."""
@@ -129,7 +138,9 @@ class HolographicVFXApp:
         if w != self.width or h != self.height:
             self.width = w
             self.height = h
+            self.aspect_ratio = w / float(h) if h > 0 else 4.0 / 3.0
             self.object_manager.resize_viewport(w, h)
+            self._camera_resolution_changed = True
 
         now = time.perf_counter()
         dt = max(0.001, min(0.1, now - self._prev_frame_time))
@@ -230,6 +241,7 @@ class HolographicVFXApp:
             "camera_name": cur_dev.name,
             "width": self.width,
             "height": self.height,
+            "aspect_ratio": self.aspect_ratio,
         }
 
         return True, frame, telemetry
@@ -244,6 +256,7 @@ class HolographicVFXApp:
         if not self.headless:
             cv2.namedWindow(window_name, cv2.WINDOW_NORMAL | cv2.WINDOW_GUI_EXPANDED)
             cv2.resizeWindow(window_name, self.width, self.height)
+            self._camera_resolution_changed = False
 
         self.running = True
         frame_count = 0
@@ -266,7 +279,21 @@ class HolographicVFXApp:
                     break
 
                 if not self.headless:
-                    cv2.imshow(window_name, frame)
+                    # Dynamically resize window only when camera resolution or device changes
+                    if self._camera_resolution_changed:
+                        cv2.resizeWindow(window_name, self.width, self.height)
+                        self._camera_resolution_changed = False
+
+                    # Query window client rectangle
+                    try:
+                        rect = cv2.getWindowImageRect(window_name)
+                        win_w, win_h = rect[2], rect[3]
+                    except Exception:
+                        win_w, win_h = self.width, self.height
+
+                    # Present frame with aspect-ratio preservation (direct or letterbox)
+                    display_frame = self.presenter.prepare_presentation(frame, win_w, win_h)
+                    cv2.imshow(window_name, display_frame)
                     key = cv2.waitKey(1) & 0xFF
 
                     if key in (27, ord("q"), ord("Q")):
@@ -297,7 +324,9 @@ class HolographicVFXApp:
                     elif ord("4") <= key <= ord("9"):
                         target_index = key - ord("1")
                         if target_index < len(self.camera_selector.devices):
-                            _, msg = self.camera_selector.select_device_by_index(target_index)
+                            ok, msg = self.camera_selector.select_device_by_index(target_index)
+                            if ok:
+                                self._camera_resolution_changed = True
                             print(f"[Info] {msg}")
 
                     # Handle window close [X] button

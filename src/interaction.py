@@ -160,9 +160,29 @@ class OrbController:
         self._two_hand_pos_filter.reset()
 
     def resize_viewport(self, width: int, height: int) -> None:
-        """Updates boundary dimensions if camera resolution changes."""
+        """Updates boundary dimensions and preserves normalized spatial placement."""
+        if width <= 0 or height <= 0:
+            return
+
+        old_w = self.w
+        old_h = self.h
         self.w = width
         self.h = height
+        self.rest_x = width * 0.5
+        self.rest_y = height * 0.5
+
+        if old_w > 0 and old_h > 0 and (old_w != width or old_h != height):
+            # Preserve normalized spatial placement across resolution changes
+            x_normalized = self.x / float(old_w)
+            y_normalized = self.y / float(old_h)
+            self.x = x_normalized * float(width)
+            self.y = y_normalized * float(height)
+
+            # Re-anchor position filters to prevent spring velocity jerk
+            self._pos_filter.reset()
+            self._two_hand_pos_filter.reset()
+
+        self._constrain_to_viewport()
 
     def _constrain_to_viewport(self) -> None:
         """Ensures the object remains strictly within visible screen boundaries."""

@@ -501,9 +501,9 @@ class SyntheticCamera(BaseCameraSource):
             cv2.line(frame, (0, y), (self.w, y), grid_color, 1)
 
         # Subtle moving ambient particle
-        ax = int((self.w * 0.5) + math.sin(t * 1.5) * 100)
-        ay = int((self.h * 0.5) + math.cos(t * 1.2) * 60)
-        cv2.circle(frame, (ax, ay), 3, (40, 50, 60), -1)
+        ax = int((self.w * 0.5) + math.sin(t * 1.5) * (self.w * 0.15))
+        ay = int((self.h * 0.5) + math.cos(t * 1.2) * (self.h * 0.12))
+        cv2.circle(frame, (ax, ay), max(2, int(min(self.w, self.h) * 0.006)), (40, 50, 60), -1)
 
         return True, frame
 
