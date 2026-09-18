@@ -198,7 +198,7 @@ class HUD:
         obj_display = (object_name or "Orb").upper()
         cam_display = camera_name or "Camera 0"
         cv2.putText(
-            frame, f"OBJ: {obj_display} [1-3] | CAM: {cam_display} [V]", (tx, ty + line_step * 4),
+            frame, f"OBJ: {obj_display} [1-6] | CAM: {cam_display} [V]", (tx, ty + line_step * 4),
             cv2.FONT_HERSHEY_SIMPLEX, base_font_scale * 0.96, (220, 230, 255), 1, cv2.LINE_AA,
         )
 
@@ -277,9 +277,9 @@ class HUD:
             self.draw_glass_rect(frame, hx, hy, help_w, help_h, accent, bg_alpha=0.6)
 
             if w < 560:
-                controls_str = "[M] MODE | 1-3 OBJ | [C] THEME | [V] CAM"
+                controls_str = "[M] MENU | 1-6 OBJ | [C] THEME | [V] CAM"
             else:
-                controls_str = "[M] MODE | 1-3 OBJ | 1-HAND: GRAB | 2-HAND: CTRL | [C] THEME | [V] CAM"
+                controls_str = "[M] MENU | 1-6 OBJ | 1-HAND: GRAB | 2-HAND: CTRL | [C] THEME | [V] CAM"
 
             cv2.putText(
                 frame, controls_str, (hx + int(10 * scale), hy + int(17 * scale)),

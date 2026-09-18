@@ -68,6 +68,11 @@ def parse_args():
         help="Include virtual/software cameras in device detection and listing",
     )
     parser.add_argument(
+        "--skip-welcome",
+        action="store_true",
+        help="Skip the holographic welcome screen on startup",
+    )
+    parser.add_argument(
         "--benchmark",
         type=int,
         default=None,
@@ -116,16 +121,19 @@ def main():
         print(f" Benchmark   : {args.benchmark} frames")
     print("-" * 60)
     print(" Controls:")
-    print("   [Pinch]     : Grab and move holographic object")
-    print("   [Open/Close]: Expand / shrink object size")
-    print("   [M]         : Cycle mode: Standard 2-Hand vs Independent Dual-Hand")
-    print("   [1 / 2 / 3] : Switch object: 1=Orb, 2=Cube, 3=Planet")
+    print("   [Pinch]     : Grab & move holographic object / Pinch-to-click UI")
+    print("   [Palm Dwell]: Hold open palm / peace sign to toggle Holographic Menu")
+    print("   [2nd Hand]  : Scroll menu up / down with secondary hand")
+    print("   [1 .. 6]    : Switch object (Orb, Cube, Planet, Ghost Orchid, Bhondu, Jellyfish)")
+    print("   [M]         : Toggle touchless holographic menu")
+    print("   [Tab / I]   : Cycle mode: Standard 2-Hand vs Independent Dual-Hand")
     print("   [V]         : Switch camera input source")
     print("   [C]         : Cycle color themes")
     print("   [R]         : Reset object to center")
     print("   [H]         : Toggle skeleton joints overlay")
     print("   [S]         : Save screenshot")
-    print("   [Q / ESC]   : Quit application")
+    print("   [Space/Ent] : Dismiss welcome screen")
+    print("   [Q / ESC]   : Close menu / Quit application")
     print("=" * 60)
 
     app = HolographicVFXApp(
@@ -136,6 +144,7 @@ def main():
         synthetic_mode=args.synthetic,
         headless=args.headless,
         include_virtual=args.include_virtual,
+        skip_welcome=args.skip_welcome or (args.benchmark is not None),
     )
 
     if args.benchmark:

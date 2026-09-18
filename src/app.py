@@ -13,6 +13,7 @@ import numpy as np
 from src.camera import CameraSelector, CameraDeviceInfo
 from src.hand_tracker import HandTracker, HandData
 from src.objects import HolographicObjectManager, BaseHolographicObject
+from src.ui import UIManager, UIState
 from src.vfx.color_themes import THEME_KEYS, get_theme
 from src.vfx.hud import HUD
 from src.vfx.presenter import AspectPreservingPresenter
@@ -31,6 +32,7 @@ class HolographicVFXApp:
         headless: bool = False,
         available_cameras: Optional[list] = None,
         include_virtual: bool = False,
+        skip_welcome: bool = False,
     ):
         self.width = width
         self.height = height
@@ -57,7 +59,18 @@ class HolographicVFXApp:
         self.tracker = HandTracker()
         self.hud = HUD()
 
-        # Universal holographic object management system (Orb=1, Cube=2, Planet=3)
+        # Holographic Touchless UI Subsystem (Welcome, Menu, Cursor, State Machine)
+        self.ui = UIManager(
+            on_select_object=self.select_object,
+            on_cycle_mode=self.cycle_interaction_mode,
+            on_cycle_theme=self.cycle_theme,
+            on_switch_camera=self.switch_camera,
+            on_switch_camera_idx=self.select_camera,
+        )
+        if skip_welcome:
+            self.ui.dismiss_welcome()
+
+        # Universal holographic object management system (Orb=1..6)
         self.object_manager = HolographicObjectManager(
             frame_width=width,
             frame_height=height,
@@ -120,6 +133,13 @@ class HolographicVFXApp:
             self._camera_resolution_changed = True
         return ok, msg
 
+    def select_camera(self, index: int) -> Tuple[bool, str]:
+        """Switches to a camera by index in the detected devices list."""
+        ok, msg = self.camera_selector.select_device_by_index(index)
+        if ok:
+            self._camera_resolution_changed = True
+        return ok, msg
+
     def cycle_interaction_mode(self) -> Tuple[object, str]:
         """Cycles between STANDARD and INDEPENDENT interaction modes."""
         return self.object_manager.cycle_interaction_mode()
@@ -159,29 +179,48 @@ class HolographicVFXApp:
         hand_data: Optional[HandData] = self.tracker.last_valid_hand
         hand_detected = len(detected_hands) > 0
 
-        # 3. Update Active Holographic Object Kinematics (Passes all detected hands)
-        obj = self.active_object
-        obj_x, obj_y, obj_radius = obj.update(detected_hands, dt=dt)
+        # 3. Holographic UI Update (Coordinates gestures, welcome dismiss, menu hit-tests, actions)
+        cur_dev = self.camera_selector.get_current_device()
+        self.ui.update(
+            detected_hands=detected_hands,
+            active_object_id=self.object_manager.active_object_id,
+            active_mode_name=self.active_object.get_mode_display_name(),
+            active_theme_name=self.active_object.theme.name,
+            active_camera_name=cur_dev.name,
+            available_cameras=self.camera_selector.get_available_devices(),
+            frame_width=self.width,
+            frame_height=self.height,
+            dt=dt,
+        )
 
-        # 4. Render Holographic Landmarks for all detected hands (if toggled)
-        if hand_detected and self.hud.show_landmarks:
+        # 4. Update Active Holographic Object Kinematics (Passes hands unless UI owns input)
+        obj = self.active_object
+        if self.ui.owns_hand_input:
+            obj_x, obj_y, obj_radius = obj.update([], dt=dt)
+        else:
+            obj_x, obj_y, obj_radius = obj.update(detected_hands, dt=dt)
+
+        # 5. Render Holographic Landmarks for all detected hands (if toggled and not in menu)
+        if hand_detected and self.hud.show_landmarks and not self.ui.is_menu_open:
             self.tracker.draw_holographic_landmarks(frame, detected_hands, obj.theme.ring_primary)
 
-        # 5. Render Active Holographic Object VFX Stack
-        pinch_pt = hand_data.pinch_point_px if (hand_data and hand_data.is_pinching) else (detected_hands[0].pinch_point_px if detected_hands else None)
+        # 6. Render Active Holographic Object VFX Stack
+        pinch_pt = None
+        if not self.ui.owns_hand_input:
+            pinch_pt = hand_data.pinch_point_px if (hand_data and hand_data.is_pinching) else (detected_hands[0].pinch_point_px if detected_hands else None)
+
         obj.render(
             frame=frame,
             pinch_pt=pinch_pt,
             dt=dt,
         )
 
-        # 6. Render Sci-Fi HUD Overlay
+        # 7. Render Sci-Fi HUD Overlay (suppressed during welcome)
         state_str = obj.get_state_label(hand_detected)
         openness_val = hand_data.openness if hand_data else (detected_hands[0].openness if detected_hands else None)
         is_pinching = hand_data.is_pinching if hand_data else any(h.is_pinching for h in detected_hands)
 
         # Active camera and object switch notifications
-        cur_dev = self.camera_selector.get_current_device()
         cam_notif = None
         if self.camera_selector.status_message and (now - self.camera_selector.status_message_time) < 2.5:
             cam_notif = self.camera_selector.status_message
@@ -196,25 +235,29 @@ class HolographicVFXApp:
             self.theme_idx = THEME_KEYS.index(curr_theme_k)
 
         rot_deg = math.degrees(obj.rotation)
-        self.hud.render(
-            frame=frame,
-            fps=self.fps,
-            frame_time_ms=self.frame_time_ms,
-            theme=obj.theme,
-            state_label=state_str,
-            openness=openness_val,
-            is_pinching=is_pinching,
-            is_grabbed=obj.is_grabbed,
-            hand_detected=hand_detected,
-            camera_name=cur_dev.name,
-            camera_notification=cam_notif,
-            object_name=obj.name,
-            object_notification=obj_notif,
-            interaction_mode=obj.interaction_mode,
-            two_hand_scale=obj.two_hand_scale,
-            rotation_deg=rot_deg,
-            selected_mode_name=obj.get_mode_display_name(),
-        )
+        if not self.ui.is_welcome_active:
+            self.hud.render(
+                frame=frame,
+                fps=self.fps,
+                frame_time_ms=self.frame_time_ms,
+                theme=obj.theme,
+                state_label=state_str,
+                openness=openness_val,
+                is_pinching=is_pinching,
+                is_grabbed=obj.is_grabbed,
+                hand_detected=hand_detected,
+                camera_name=cur_dev.name,
+                camera_notification=cam_notif,
+                object_name=obj.name,
+                object_notification=obj_notif,
+                interaction_mode=obj.interaction_mode,
+                two_hand_scale=obj.two_hand_scale,
+                rotation_deg=rot_deg,
+                selected_mode_name=obj.get_mode_display_name(),
+            )
+
+        # 8. Render Holographic UI Layer (Welcome screen, Menu, Cursor, Gesture Reticle)
+        self.ui.render(frame, obj.theme)
 
         telemetry = {
             "fps": self.fps,
@@ -230,6 +273,9 @@ class HolographicVFXApp:
             "selected_mode": obj.selected_mode.value,
             "selected_mode_name": obj.get_mode_display_name(),
             "num_hands_detected": len(detected_hands),
+            "ui_state": self.ui.current_state.value,
+            "is_menu_open": self.ui.is_menu_open,
+            "is_welcome_active": self.ui.is_welcome_active,
             # Backward compatibility keys:
             "orb_x": obj_x,
             "orb_y": obj_y,
@@ -297,9 +343,23 @@ class HolographicVFXApp:
                     key = cv2.waitKey(1) & 0xFF
 
                     if key in (27, ord("q"), ord("Q")):
-                        print("\n[Info] Exit requested by user.")
-                        break
+                        if key == 27 and self.ui.is_menu_open:
+                            self.ui.toggle_menu()
+                            print("[Info] Closed holographic menu.")
+                        elif key == 27 and self.ui.is_welcome_active:
+                            self.ui.dismiss_welcome()
+                            print("[Info] Dismissed welcome screen.")
+                        else:
+                            print("\n[Info] Exit requested by user.")
+                            break
+                    elif key in (32, 13):  # Space or Enter
+                        if self.ui.is_welcome_active:
+                            self.ui.dismiss_welcome()
+                            print("[Info] Welcome screen dismissed.")
                     elif key in (ord("m"), ord("M")):
+                        self.ui.toggle_menu()
+                        print(f"[Info] Holographic menu {'opened' if self.ui.is_menu_open else 'closed'}.")
+                    elif key in (ord("\t"), ord("i"), ord("I")):
                         _, msg = self.cycle_interaction_mode()
                         print(f"[Info] {msg}")
                     elif key in (ord("c"), ord("C")):
@@ -317,11 +377,11 @@ class HolographicVFXApp:
                         filename = f"hologram_capture_{int(time.time())}.png"
                         cv2.imwrite(filename, frame)
                         print(f"[Info] Screenshot saved: {filename}")
-                    elif ord("1") <= key <= ord("3"):
+                    elif ord("1") <= key <= ord("6"):
                         target_obj_id = key - ord("0")
                         _, msg = self.select_object(target_obj_id)
                         print(f"[Info] {msg}")
-                    elif ord("4") <= key <= ord("9"):
+                    elif ord("7") <= key <= ord("9"):
                         target_index = key - ord("1")
                         if target_index < len(self.camera_selector.devices):
                             ok, msg = self.camera_selector.select_device_by_index(target_index)
