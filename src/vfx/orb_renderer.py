@@ -40,10 +40,20 @@ class Shockwave:
         h, w = frame.shape[:2]
         cx, cy = int(self.cx), int(self.cy)
 
-        # Draw circle on transparent overlay
-        overlay = frame.copy()
-        cv2.circle(overlay, (cx, cy), current_r, color_bgr, thickness, cv2.LINE_AA)
-        cv2.addWeighted(overlay, float(alpha * 0.75), frame, float(1.0 - alpha * 0.75), 0, frame)
+        # Local ROI bounded around expanding shockwave
+        pad = current_r + thickness + 3
+        x1 = max(0, cx - pad)
+        y1 = max(0, cy - pad)
+        x2 = min(w, cx + pad + 1)
+        y2 = min(h, cy + pad + 1)
+
+        if x2 <= x1 or y2 <= y1:
+            return
+
+        roi = frame[y1:y2, x1:x2]
+        overlay = roi.copy()
+        cv2.circle(overlay, (cx - x1, cy - y1), current_r, color_bgr, thickness, cv2.LINE_AA)
+        cv2.addWeighted(overlay, float(alpha * 0.75), roi, float(1.0 - alpha * 0.75), 0, roi)
 
 
 class OrbRenderer:
@@ -264,21 +274,20 @@ class OrbRenderer:
             # Subtle holographic breathing / oscillation
             breath = 0.94 + 0.06 * math.sin(elapsed * 5.0)
 
-            # Build additive BGR glow buffer (float32 for fast vectorized blend)
-            glow_bgr = np.zeros((roi_y2 - roi_y1, roi_x2 - roi_x1, 3), dtype=np.float32)
+            # Vectorized additive BGR glow buffer
+            outer_w = np.array(self.theme.outer_glow, dtype=np.float32) * (0.75 * breath)
+            inner_w = np.array(self.theme.inner_glow, dtype=np.float32) * (1.1 * breath)
+            core_w = np.array(self.theme.core, dtype=np.float32) * 1.3
 
-            # Accumulate color layers
-            for ch in range(3):
-                glow_bgr[:, :, ch] += (
-                    o_slice * (self.theme.outer_glow[ch] * 0.75 * breath)
-                    + i_slice * (self.theme.inner_glow[ch] * 1.1 * breath)
-                    + c_slice * (self.theme.core[ch] * 1.3)
-                )
+            glow_bgr = (
+                o_slice[:, :, None] * outer_w
+                + i_slice[:, :, None] * inner_w
+                + c_slice[:, :, None] * core_w
+            )
+            glow_u8 = np.clip(glow_bgr, 0, 255).astype(np.uint8)
 
-            # Fast additive composite onto frame with clipping
-            roi_frame = frame[roi_y1:roi_y2, roi_x1:roi_x2].astype(np.float32)
-            blended_roi = np.clip(roi_frame + glow_bgr, 0, 255).astype(np.uint8)
-            frame[roi_y1:roi_y2, roi_x1:roi_x2] = blended_roi
+            # In-place saturated additive composite using optimized OpenCV SIMD
+            cv2.add(frame[roi_y1:roi_y2, roi_x1:roi_x2], glow_u8, dst=frame[roi_y1:roi_y2, roi_x1:roi_x2])
 
         # 4. Render Gyroscopic Orbital Rings
         self.draw_orbital_rings(frame, cx, cy, radius, elapsed, extra_rotation_deg=rotation_deg)

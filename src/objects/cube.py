@@ -165,7 +165,7 @@ class HolographicCube(BaseHolographicObject):
         for sw in self.shockwaves:
             sw.render(frame, self.theme.shockwave)
 
-        # 2. Render Ambient Volumetric Glow Field
+        # 2. Render Ambient Volumetric Glow Field (vectorized in-place)
         glow_r = int(scale * 1.5)
         if glow_r > 5:
             x1 = max(0, int(cx - glow_r))
@@ -176,10 +176,10 @@ class HolographicCube(BaseHolographicObject):
                 gx, gy = np.ogrid[y1 - cy:y2 - cy, x1 - cx:x2 - cx]
                 dist = np.sqrt(gx * gx + gy * gy)
                 aura = np.clip(1.0 - (dist / float(glow_r)), 0.0, 1.0) ** 2.2
-                roi = frame[y1:y2, x1:x2].astype(np.float32)
-                for ch in range(3):
-                    roi[:, :, ch] += aura * (self.theme.inner_glow[ch] * 0.45)
-                frame[y1:y2, x1:x2] = np.clip(roi, 0, 255).astype(np.uint8)
+                aura_w = np.array(self.theme.inner_glow, dtype=np.float32) * 0.45
+                glow_bgr = aura[:, :, None] * aura_w
+                glow_u8 = np.clip(glow_bgr, 0, 255).astype(np.uint8)
+                cv2.add(frame[y1:y2, x1:x2], glow_u8, dst=frame[y1:y2, x1:x2])
 
         # 3. Compute 3D Rotated Vertices
         s = scale * 0.8
@@ -206,7 +206,7 @@ class HolographicCube(BaseHolographicObject):
             py = int(cy + Y * factor)
             proj_2d.append((px, py))
 
-        # 4. Render Depth-Sorted Translucent Faces
+        # 4. Render Depth-Sorted Translucent Faces (Local ROI)
         face_depths = []
         for face_idx, face in enumerate(self.FACES):
             avg_z = sum(rotated_verts[v][2] for v in face) / 4.0
@@ -215,17 +215,30 @@ class HolographicCube(BaseHolographicObject):
         # Sort back-to-front
         face_depths.sort(key=lambda item: item[0], reverse=True)
 
-        face_overlay = frame.copy()
-        face_tint = tuple(max(10, int(c * 0.35)) for c in self.theme.inner_glow)
+        min_x = min(p[0] for p in proj_2d) - 4
+        max_x = max(p[0] for p in proj_2d) + 5
+        min_y = min(p[1] for p in proj_2d) - 4
+        max_y = max(p[1] for p in proj_2d) + 5
 
-        for _, _, face in face_depths:
-            pts = np.array([proj_2d[v] for v in face], dtype=np.int32)
-            # Translucent fill
-            cv2.fillConvexPoly(face_overlay, pts, face_tint, cv2.LINE_AA)
-            # Subtle face diagonal wireframe
-            cv2.line(face_overlay, proj_2d[face[0]], proj_2d[face[2]], self.theme.ring_secondary, 1, cv2.LINE_AA)
+        fx1 = max(0, min_x)
+        fy1 = max(0, min_y)
+        fx2 = min(w, max_x)
+        fy2 = min(h, max_y)
 
-        cv2.addWeighted(face_overlay, 0.45, frame, 0.55, 0, frame)
+        if fx2 > fx1 and fy2 > fy1:
+            face_roi = frame[fy1:fy2, fx1:fx2]
+            face_overlay = face_roi.copy()
+            face_tint = tuple(max(10, int(c * 0.35)) for c in self.theme.inner_glow)
+            local_proj = [(p[0] - fx1, p[1] - fy1) for p in proj_2d]
+
+            for _, _, face in face_depths:
+                pts = np.array([local_proj[v] for v in face], dtype=np.int32)
+                # Translucent fill
+                cv2.fillConvexPoly(face_overlay, pts, face_tint, cv2.LINE_AA)
+                # Subtle face diagonal wireframe
+                cv2.line(face_overlay, local_proj[face[0]], local_proj[face[2]], self.theme.ring_secondary, 1, cv2.LINE_AA)
+
+            cv2.addWeighted(face_overlay, 0.45, face_roi, 0.55, 0, face_roi)
 
         # 5. Render Glowing Edges
         for v1, v2 in self.EDGES:

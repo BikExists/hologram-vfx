@@ -43,7 +43,9 @@ class HandTracker:
         grace_period_frames: int = 4,
         pinch_grab_thresh: float = 0.38,
         pinch_release_thresh: float = 0.52,
+        max_tracking_dim: int = 640,
     ):
+        self.max_tracking_dim = max_tracking_dim
         self.mp_hands = mp.solutions.hands
         self.hands = self.mp_hands.Hands(
             static_image_mode=False,
@@ -94,8 +96,17 @@ class HandTracker:
         now = time.perf_counter() if timestamp is None else timestamp
         h, w = frame_bgr.shape[:2]
 
-        # Convert to RGB for MediaPipe
-        rgb_frame = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+        # Downscale tracking buffer if native frame exceeds max_tracking_dim
+        max_dim = max(w, h)
+        if self.max_tracking_dim and max_dim > self.max_tracking_dim:
+            scale = self.max_tracking_dim / float(max_dim)
+            track_w = max(1, int(round(w * scale)))
+            track_h = max(1, int(round(h * scale)))
+            track_bgr = cv2.resize(frame_bgr, (track_w, track_h), interpolation=cv2.INTER_LINEAR)
+            rgb_frame = cv2.cvtColor(track_bgr, cv2.COLOR_BGR2RGB)
+        else:
+            rgb_frame = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+
         rgb_frame.flags.writeable = False
         results = self.hands.process(rgb_frame)
 

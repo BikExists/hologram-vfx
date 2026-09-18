@@ -153,17 +153,31 @@ class HolographicPlanet(BaseHolographicObject):
         # Cassini division / middle band
         axes_mid = (int(r * 1.85), int(r * 0.55))
 
-        # Broad translucent ring backdrop on overlay
-        overlay = frame.copy()
-        cv2.ellipse(overlay, center, axes_outer, tilt, start_angle, end_angle, self.theme.ring_primary, 4, cv2.LINE_AA)
-        cv2.ellipse(overlay, center, axes_mid, tilt, start_angle, end_angle, self.theme.ring_secondary, 2, cv2.LINE_AA)
-        cv2.ellipse(overlay, center, axes_inner, tilt, start_angle, end_angle, self.theme.ring_primary, 1, cv2.LINE_AA)
-        cv2.addWeighted(overlay, 0.40, frame, 0.60, 0, frame)
+        # Local ROI bounding box for ring geometry
+        pad = int(axes_outer[0]) + 8
+        h_frame, w_frame = frame.shape[:2]
+        x1 = max(0, int(cx - pad))
+        y1 = max(0, int(cy - pad))
+        x2 = min(w_frame, int(cx + pad + 1))
+        y2 = min(h_frame, int(cy + pad + 1))
 
-        # Crisp glowing ring lines directly onto frame
-        cv2.ellipse(frame, center, axes_outer, tilt, start_angle, end_angle, self.theme.ring_primary, 2, cv2.LINE_AA)
-        cv2.ellipse(frame, center, axes_mid, tilt, start_angle, end_angle, self.theme.ring_secondary, 1, cv2.LINE_AA)
-        cv2.ellipse(frame, center, axes_inner, tilt, start_angle, end_angle, (255, 255, 255), 1, cv2.LINE_AA)
+        if x2 <= x1 or y2 <= y1:
+            return
+
+        local_center = (int(cx - x1), int(cy - y1))
+        roi = frame[y1:y2, x1:x2]
+        overlay = roi.copy()
+
+        # Broad translucent ring backdrop on local overlay
+        cv2.ellipse(overlay, local_center, axes_outer, tilt, start_angle, end_angle, self.theme.ring_primary, 4, cv2.LINE_AA)
+        cv2.ellipse(overlay, local_center, axes_mid, tilt, start_angle, end_angle, self.theme.ring_secondary, 2, cv2.LINE_AA)
+        cv2.ellipse(overlay, local_center, axes_inner, tilt, start_angle, end_angle, self.theme.ring_primary, 1, cv2.LINE_AA)
+        cv2.addWeighted(overlay, 0.40, roi, 0.60, 0, roi)
+
+        # Crisp glowing ring lines directly onto local roi
+        cv2.ellipse(roi, local_center, axes_outer, tilt, start_angle, end_angle, self.theme.ring_primary, 2, cv2.LINE_AA)
+        cv2.ellipse(roi, local_center, axes_mid, tilt, start_angle, end_angle, self.theme.ring_secondary, 1, cv2.LINE_AA)
+        cv2.ellipse(roi, local_center, axes_inner, tilt, start_angle, end_angle, (255, 255, 255), 1, cv2.LINE_AA)
 
     def render(
         self,
@@ -197,20 +211,25 @@ class HolographicPlanet(BaseHolographicObject):
             limb = np.clip(1.0 - (np.abs(dist - r) / float(r * 0.7)), 0.0, 1.0) ** 2.0
             core_sphere = np.clip(1.0 - (dist / float(r)), 0.0, 1.0) ** 1.5
 
-            roi = frame[y1:y2, x1:x2].astype(np.float32)
-            for ch in range(3):
-                roi[:, :, ch] += (
-                    limb * (self.theme.outer_glow[ch] * 0.75)
-                    + core_sphere * (self.theme.inner_glow[ch] * 0.95)
-                )
-            frame[y1:y2, x1:x2] = np.clip(roi, 0, 255).astype(np.uint8)
+            limb_w = np.array(self.theme.outer_glow, dtype=np.float32) * 0.75
+            core_w = np.array(self.theme.inner_glow, dtype=np.float32) * 0.95
+            glow_bgr = limb[:, :, None] * limb_w + core_sphere[:, :, None] * core_w
+            glow_u8 = np.clip(glow_bgr, 0, 255).astype(np.uint8)
+            cv2.add(frame[y1:y2, x1:x2], glow_u8, dst=frame[y1:y2, x1:x2])
 
         # 4. Planetary Disk & Wireframe Latitude Bands
         center = (int(cx), int(cy))
-        # Solid subtle disk fill
-        disk_overlay = frame.copy()
-        cv2.circle(disk_overlay, center, r_int, self.theme.inner_glow, -1, cv2.LINE_AA)
-        cv2.addWeighted(disk_overlay, 0.25, frame, 0.75, 0, frame)
+        # Solid subtle disk fill via local ROI
+        pad_disk = r_int + 2
+        dx1 = max(0, int(cx - pad_disk))
+        dy1 = max(0, int(cy - pad_disk))
+        dx2 = min(w, int(cx + pad_disk + 1))
+        dy2 = min(h, int(cy + pad_disk + 1))
+        if dx2 > dx1 and dy2 > dy1:
+            disk_roi = frame[dy1:dy2, dx1:dx2]
+            disk_overlay = disk_roi.copy()
+            cv2.circle(disk_overlay, (int(cx - dx1), int(cy - dy1)), r_int, self.theme.inner_glow, -1, cv2.LINE_AA)
+            cv2.addWeighted(disk_overlay, 0.25, disk_roi, 0.75, 0, disk_roi)
 
         # Planet perimeter boundary ring
         cv2.circle(frame, center, r_int, self.theme.ring_primary, 2, cv2.LINE_AA)
