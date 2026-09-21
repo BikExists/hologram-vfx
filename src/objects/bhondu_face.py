@@ -16,6 +16,7 @@ import numpy as np
 from src.hand_tracker import HandData
 from src.objects.base import BaseHolographicObject
 from src.vfx.color_themes import ColorTheme
+from src.vfx.aura import get_aura_cache
 from src.vfx.orb_renderer import Shockwave
 from src.vfx.particles import ParticleSystem
 
@@ -51,6 +52,7 @@ class HolographicBhonduFace(BaseHolographicObject):
         self.wobble_angle: float = 0.0
 
         # Visual VFX components
+        self.aura_cache = get_aura_cache()
         self.particles = ParticleSystem(num_orbit_particles=36)
         self.shockwaves: List[Shockwave] = []
 
@@ -150,16 +152,12 @@ class HolographicBhonduFace(BaseHolographicObject):
         local_cy = cy - y1
         roi = frame[y1:y2, x1:x2]
 
-        # 3. Ambient Volumetric Glow Field (in-place saturated addition)
+        # 3. Ambient Volumetric Glow Field (cached)
         glow_r = int(r * 1.5)
         if glow_r > 5:
-            gx, gy = np.ogrid[y1 - cy:y2 - cy, x1 - cx:x2 - cx]
-            dist = np.sqrt(gx * gx + gy * gy)
-            aura = np.clip(1.0 - (dist / float(glow_r)), 0.0, 1.0) ** 2.2
-            aura_w = np.array(self.theme.inner_glow, dtype=np.float32) * 0.42
-            glow_bgr = aura[:, :, None] * aura_w
-            glow_u8 = np.clip(glow_bgr, 0, 255).astype(np.uint8)
-            cv2.add(roi, glow_u8, dst=roi)
+            self.aura_cache.render_standard_aura(
+                roi, local_cx, local_cy, glow_r, self.theme.inner_glow, weight=0.42, power=2.2
+            )
 
         # 4. Procedural Face Elements inside Local ROI
         overlay = roi.copy()

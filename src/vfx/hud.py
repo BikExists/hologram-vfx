@@ -46,8 +46,7 @@ class HUD:
             return
 
         sub_roi = frame[y:y2, x:x2]
-        dark_patch = (sub_roi * (1.0 - bg_alpha)).astype(np.uint8)
-        frame[y:y2, x:x2] = dark_patch
+        cv2.convertScaleAbs(sub_roi, alpha=(1.0 - bg_alpha), dst=sub_roi)
 
         # Outer border
         cv2.rectangle(frame, (x, y), (x2, y2), border_color, 1, cv2.LINE_AA)

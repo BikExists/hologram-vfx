@@ -16,6 +16,7 @@ import numpy as np
 from src.hand_tracker import HandData
 from src.objects.base import BaseHolographicObject
 from src.vfx.color_themes import ColorTheme
+from src.vfx.aura import get_aura_cache
 from src.vfx.orb_renderer import Shockwave
 from src.vfx.particles import ParticleSystem
 
@@ -50,6 +51,7 @@ class HolographicPlanet(BaseHolographicObject):
         self.moon_trail: List[Tuple[float, float, float]] = []  # (x, y, age)
 
         # Visual VFX components
+        self.aura_cache = get_aura_cache()
         self.particles = ParticleSystem(num_orbit_particles=40)
         self.shockwaves: List[Shockwave] = []
         self.time_start = time.perf_counter()
@@ -198,24 +200,10 @@ class HolographicPlanet(BaseHolographicObject):
         # 2. Render Back Half of Planetary Rings (behind planet sphere)
         self._draw_rings_half(frame, cx, cy, r, is_front=False)
 
-        # 3. Render Atmospheric Glow Halo (Local ROI)
-        glow_box = int(r * 1.7)
-        x1 = max(0, int(cx - glow_box))
-        y1 = max(0, int(cy - glow_box))
-        x2 = min(w, int(cx + glow_box))
-        y2 = min(h, int(cy + glow_box))
-        if x2 > x1 and y2 > y1:
-            gx, gy = np.ogrid[y1 - cy:y2 - cy, x1 - cx:x2 - cx]
-            dist = np.sqrt(gx * gx + gy * gy)
-            # Limb-darkening halo: peaks at planet perimeter r and fades outwards
-            limb = np.clip(1.0 - (np.abs(dist - r) / float(r * 0.7)), 0.0, 1.0) ** 2.0
-            core_sphere = np.clip(1.0 - (dist / float(r)), 0.0, 1.0) ** 1.5
-
-            limb_w = np.array(self.theme.outer_glow, dtype=np.float32) * 0.75
-            core_w = np.array(self.theme.inner_glow, dtype=np.float32) * 0.95
-            glow_bgr = limb[:, :, None] * limb_w + core_sphere[:, :, None] * core_w
-            glow_u8 = np.clip(glow_bgr, 0, 255).astype(np.uint8)
-            cv2.add(frame[y1:y2, x1:x2], glow_u8, dst=frame[y1:y2, x1:x2])
+        # 3. Render Atmospheric Glow Halo (cached)
+        self.aura_cache.render_planet_halo(
+            frame, cx, cy, r, self.theme.outer_glow, self.theme.inner_glow
+        )
 
         # 4. Planetary Disk & Wireframe Latitude Bands
         center = (int(cx), int(cy))

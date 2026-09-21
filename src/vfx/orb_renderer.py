@@ -68,6 +68,8 @@ class OrbRenderer:
 
         # Cached glow masks: key = rounded integer radius
         self._glow_cache: Dict[int, Tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
+        # Cached pre-baked composite glow templates: (r_int, theme_tuple) -> (oi_u8, core_u8)
+        self._composite_glow_cache: Dict[Tuple[int, Tuple[Any, ...]], Tuple[np.ndarray, np.ndarray]] = {}
 
     def set_theme(self, theme_or_name: Union[str, ColorTheme]) -> None:
         """Switch color theme."""
@@ -127,6 +129,31 @@ class OrbRenderer:
 
         self._glow_cache[r_quantized] = (core_map, inner_map, outer_map)
         return self._glow_cache[r_quantized]
+
+    def _get_composite_glow(self, radius: int) -> Tuple[np.ndarray, np.ndarray]:
+        """Returns pre-baked (outer_inner_template_u8, core_template_u8) for the orb."""
+        theme_key = (self.theme.outer_glow, self.theme.inner_glow, self.theme.core)
+        cache_key = (radius, theme_key)
+        cached = self._composite_glow_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        core_map, inner_map, outer_map = self._get_glow_maps(radius)
+
+        outer_w = np.array(self.theme.outer_glow, dtype=np.float32) * 0.75
+        inner_w = np.array(self.theme.inner_glow, dtype=np.float32) * 1.1
+        core_w = np.array(self.theme.core, dtype=np.float32) * 1.3
+
+        oi_bgr = outer_map[:, :, None] * outer_w + inner_map[:, :, None] * inner_w
+        oi_u8 = np.clip(oi_bgr, 0, 255).astype(np.uint8)
+        core_u8 = np.clip(core_map[:, :, None] * core_w, 0, 255).astype(np.uint8)
+
+        if len(self._composite_glow_cache) > 40:
+            self._composite_glow_cache.clear()
+
+        entry = (oi_u8, core_u8)
+        self._composite_glow_cache[cache_key] = entry
+        return entry
 
     def draw_electric_tether(
         self,
@@ -259,7 +286,7 @@ class OrbRenderer:
         roi_y2 = min(h, y_max)
 
         if roi_x2 > roi_x1 and roi_y2 > roi_y1:
-            core_map, inner_map, outer_map = self._get_glow_maps(r_int)
+            oi_template, core_template = self._get_composite_glow(r_int)
 
             # Slice corresponding portion of glow maps if ROI was clipped
             map_x1 = roi_x1 - x_min
@@ -267,24 +294,15 @@ class OrbRenderer:
             map_x2 = map_x1 + (roi_x2 - roi_x1)
             map_y2 = map_y1 + (roi_y2 - roi_y1)
 
-            c_slice = core_map[map_y1:map_y2, map_x1:map_x2]
-            i_slice = inner_map[map_y1:map_y2, map_x1:map_x2]
-            o_slice = outer_map[map_y1:map_y2, map_x1:map_x2]
+            oi_slice = oi_template[map_y1:map_y2, map_x1:map_x2]
+            c_slice = core_template[map_y1:map_y2, map_x1:map_x2]
 
             # Subtle holographic breathing / oscillation
-            breath = 0.94 + 0.06 * math.sin(elapsed * 5.0)
+            breath = float(0.94 + 0.06 * math.sin(elapsed * 5.0))
 
-            # Vectorized additive BGR glow buffer
-            outer_w = np.array(self.theme.outer_glow, dtype=np.float32) * (0.75 * breath)
-            inner_w = np.array(self.theme.inner_glow, dtype=np.float32) * (1.1 * breath)
-            core_w = np.array(self.theme.core, dtype=np.float32) * 1.3
-
-            glow_bgr = (
-                o_slice[:, :, None] * outer_w
-                + i_slice[:, :, None] * inner_w
-                + c_slice[:, :, None] * core_w
-            )
-            glow_u8 = np.clip(glow_bgr, 0, 255).astype(np.uint8)
+            # Fast in-place SIMD integer scaling for outer/inner glow breathing modulation
+            modulated = cv2.convertScaleAbs(oi_slice, alpha=breath)
+            glow_u8 = cv2.add(modulated, c_slice)
 
             # In-place saturated additive composite using optimized OpenCV SIMD
             cv2.add(frame[roi_y1:roi_y2, roi_x1:roi_x2], glow_u8, dst=frame[roi_y1:roi_y2, roi_x1:roi_x2])

@@ -72,6 +72,8 @@ class HandTracker:
         }
         # Fallback/backward compatibility estimator reference
         self.estimator = self.estimators["Right"]
+        # Reusable tracking buffer for zero-allocation BGR->RGB conversion
+        self._rgb_buffer: Optional[np.ndarray] = None
 
     def reset(self) -> None:
         """Reset tracker state and filters."""
@@ -103,10 +105,20 @@ class HandTracker:
             track_w = max(1, int(round(w * scale)))
             track_h = max(1, int(round(h * scale)))
             track_bgr = cv2.resize(frame_bgr, (track_w, track_h), interpolation=cv2.INTER_LINEAR)
-            rgb_frame = cv2.cvtColor(track_bgr, cv2.COLOR_BGR2RGB)
+            src_bgr = track_bgr
+            target_shape = (track_h, track_w, 3)
         else:
-            rgb_frame = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+            src_bgr = frame_bgr
+            target_shape = (h, w, 3)
 
+        # Reuse pre-allocated RGB buffer to eliminate heap churn
+        if self._rgb_buffer is None or self._rgb_buffer.shape != target_shape:
+            self._rgb_buffer = np.empty(target_shape, dtype=np.uint8)
+        else:
+            self._rgb_buffer.flags.writeable = True
+
+        cv2.cvtColor(src_bgr, cv2.COLOR_BGR2RGB, dst=self._rgb_buffer)
+        rgb_frame = self._rgb_buffer
         rgb_frame.flags.writeable = False
         results = self.hands.process(rgb_frame)
 

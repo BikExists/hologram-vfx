@@ -178,8 +178,7 @@ class MenuTriggerZone:
         # 1. Semi-transparent glass background
         sub_roi = frame[y1:y2, x1:x2]
         if sub_roi.size > 0:
-            dark_patch = (sub_roi * (1.0 - bg_alpha)).astype(np.uint8)
-            frame[y1:y2, x1:x2] = dark_patch
+            cv2.convertScaleAbs(sub_roi, alpha=(1.0 - bg_alpha), dst=sub_roi)
 
         # 2. Outer border and sci-fi brackets
         cv2.rectangle(frame, (x1, y1), (x2, y2), border_color, 1, cv2.LINE_AA)

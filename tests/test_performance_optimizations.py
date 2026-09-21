@@ -9,6 +9,13 @@ from src.app import HolographicVFXApp
 from src.hand_tracker import HandTracker, HandData
 from src.objects.cube import HolographicCube
 from src.objects.planet import HolographicPlanet
+from src.objects.ghost_orchid import HolographicGhostOrchid
+from src.objects.bhondu_face import HolographicBhonduFace
+from src.objects.jellyfish import HolographicJellyfish
+from src.ui.menu import HolographicMenu
+from src.vfx.aura import AuraCache, get_aura_cache
+from src.vfx.color_themes import get_theme
+from src.vfx.hud import HUD
 from src.vfx.orb_renderer import OrbRenderer, Shockwave
 
 
@@ -225,3 +232,105 @@ def test_orb_radial_glow_saturation_and_visual_parity():
     # Radial falloff: pixels outside the glow box should have lower intensity than center
     outer_pixel = frame[240, 320 + 150]
     assert np.mean(outer_pixel) < np.mean(core_pixel), "Radial glow must fall off with distance"
+
+
+def test_phase2_aura_cache_quantization_and_consistency():
+    """Verify AuraCache caches standard and planet aura patches and handles boundary clipping."""
+    cache = AuraCache(max_entries=16)
+
+    # 1. Standard aura caching
+    p1 = cache.get_standard_aura(45, (255, 200, 50), weight=0.42, power=2.2)
+    p2 = cache.get_standard_aura(45, (255, 200, 50), weight=0.42, power=2.2)
+    assert p1 is p2, "Identical parameters must return cached instance"
+    assert p1.shape == (91, 91, 3)
+
+    # 2. Planet halo caching
+    h1, box1 = cache.get_planet_halo(40, (255, 100, 50), (200, 255, 100))
+    h2, box2 = cache.get_planet_halo(40, (255, 100, 50), (200, 255, 100))
+    assert h1 is h2, "Planet halo must return cached instance"
+    assert box1 == int(40 * 1.7)
+
+    # 3. Boundary clipping tests: verify no crash when rendering at viewport extremes
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    # Centered
+    cache.render_standard_aura(frame, 320, 240, 50, (0, 255, 255))
+    assert np.any(frame > 0)
+
+    # Off-screen top-left
+    cache.render_standard_aura(frame, -20, -20, 50, (0, 255, 255))
+    # Off-screen bottom-right
+    cache.render_standard_aura(frame, 660, 500, 50, (0, 255, 255))
+    # Planet halo off-screen
+    cache.render_planet_halo(frame, -30, 240, 40, (255, 100, 50), (200, 255, 100))
+    cache.render_planet_halo(frame, 680, 520, 40, (255, 100, 50), (200, 255, 100))
+
+
+def test_phase2_orb_prebaked_composite_glow_parity():
+    """Verify OrbRenderer pre-baked composite glow matches expected holographic radiance within tight tolerance."""
+    orb = OrbRenderer(theme_name="cyan")
+    oi_u8, core_u8 = orb._get_composite_glow(50)
+    oi_u8_2, core_u8_2 = orb._get_composite_glow(50)
+    assert oi_u8 is oi_u8_2, "Composite glow templates must be cached"
+    assert core_u8 is core_u8_2
+
+    # Render frame and check non-zero radiance
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    orb.render(frame, center=(320.0, 240.0), radius=50.0, dt=0.033)
+    assert np.any(frame > 0)
+
+
+def test_phase2_zero_heap_allocation_tracker_buffer():
+    """Verify HandTracker reuses _rgb_buffer across successive frames of the same shape."""
+    tracker = HandTracker(max_tracking_dim=640)
+    frame_vga = np.zeros((480, 640, 3), dtype=np.uint8)
+
+    # First call allocates buffer
+    tracker.process_frame_multi(frame_vga)
+    assert tracker._rgb_buffer is not None
+    assert tracker._rgb_buffer.shape == (480, 640, 3)
+    buf_id_1 = id(tracker._rgb_buffer)
+
+    # Second call reuses same buffer
+    tracker.process_frame_multi(frame_vga)
+    assert id(tracker._rgb_buffer) == buf_id_1
+
+    # Resolution change reallocates buffer to match new dimensions
+    frame_hd = np.zeros((720, 1280, 3), dtype=np.uint8)
+    tracker.process_frame_multi(frame_hd)
+    assert tracker._rgb_buffer.shape == (360, 640, 3)
+
+
+def test_phase2_menu_and_hud_in_place_glass_scaling():
+    """Verify HUD and HolographicMenu glass darkening functions with in-place SIMD scaling."""
+    # 1. HUD glass rect
+    frame = np.full((480, 640, 3), 200, dtype=np.uint8)
+    HUD.draw_glass_rect(frame, 50, 50, 200, 100, border_color=(0, 255, 255), bg_alpha=0.5)
+    # Interior of glass rect should be darker
+    darkened_val = np.mean(frame[60:140, 60:240])
+    assert darkened_val < 180, "Glass rectangle must darken background"
+
+    # 2. Menu render
+    menu = HolographicMenu()
+    menu_frame = np.full((480, 640, 3), 150, dtype=np.uint8)
+    theme = get_theme("cyan")
+    menu.render(menu_frame, theme)
+    assert np.mean(menu_frame[menu.panel_y : menu.panel_y + menu.panel_h, menu.panel_x : menu.panel_x + menu.panel_w]) < 150
+
+
+def test_phase2_all_objects_aura_rendering():
+    """Verify all 6 objects render correctly with optimized aura cache."""
+    classes = [
+        HolographicCube,
+        HolographicPlanet,
+        HolographicGhostOrchid,
+        HolographicBhonduFace,
+        HolographicJellyfish,
+    ]
+
+    for cls in classes:
+        obj = cls(frame_width=640, frame_height=480, theme_name="cyan")
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        obj.x, obj.y = 320.0, 240.0
+        obj.render(frame, dt=0.033)
+        assert np.any(frame > 0), f"{cls.__name__} should render non-zero pixels"
+

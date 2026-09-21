@@ -54,6 +54,9 @@ class HolographicMenu:
         self._layout_w: int = 640
         self._layout_h: int = 480
 
+        # Reusable scratch buffer for button overlays
+        self._scratch_btn_overlay = np.empty((120, 400, 3), dtype=np.uint8)
+
         # Baseline layout construction guarantees close_item and menu items exist immediately
         self.build_layout(640, 480)
 
@@ -332,8 +335,7 @@ class HolographicMenu:
         # 1. Semi-transparent glass panel background
         sub_roi = frame[py : py + ph, px : px + pw]
         if sub_roi.size > 0:
-            dark_patch = (sub_roi * 0.28).astype(np.uint8)
-            frame[py : py + ph, px : px + pw] = dark_patch
+            cv2.convertScaleAbs(sub_roi, alpha=0.28, dst=sub_roi)
 
         # 2. Outer border and sci-fi corner brackets
         cv2.rectangle(frame, (px, py), (px + pw, py + ph), accent, 1, cv2.LINE_AA)
@@ -398,8 +400,12 @@ class HolographicMenu:
             # Draw button box
             btn_roi = frame[iy : iy + ih, ix : ix + iw]
             if btn_roi.size > 0:
-                overlay = np.full_like(btn_roi, (40, 50, 65)) if item.is_hovered else np.full_like(btn_roi, (20, 25, 35))
-                cv2.addWeighted(overlay, btn_bg_alpha, btn_roi, 1.0 - btn_bg_alpha, 0, btn_roi)
+                overlay_color = (40, 50, 65) if item.is_hovered else (20, 25, 35)
+                if self._scratch_btn_overlay.shape[0] < ih or self._scratch_btn_overlay.shape[1] < iw:
+                    self._scratch_btn_overlay = np.empty((max(ih + 20, 120), max(iw + 50, 400), 3), dtype=np.uint8)
+                sc_slice = self._scratch_btn_overlay[:ih, :iw]
+                sc_slice[:] = overlay_color
+                cv2.addWeighted(sc_slice, btn_bg_alpha, btn_roi, 1.0 - btn_bg_alpha, 0, btn_roi)
 
             cv2.rectangle(frame, (ix, iy), (ix + iw, iy + ih), btn_border, 1, cv2.LINE_AA)
 
@@ -442,8 +448,11 @@ class HolographicMenu:
 
             c_roi = frame[ci.y : ci.y + ci.h, ci.x : ci.x + ci.w]
             if c_roi.size > 0:
-                c_overlay = np.full_like(c_roi, close_bg)
-                cv2.addWeighted(c_overlay, 0.45, c_roi, 0.55, 0, c_roi)
+                if self._scratch_btn_overlay.shape[0] < ci.h or self._scratch_btn_overlay.shape[1] < ci.w:
+                    self._scratch_btn_overlay = np.empty((max(ci.h + 20, 120), max(ci.w + 50, 400), 3), dtype=np.uint8)
+                c_sc_slice = self._scratch_btn_overlay[:ci.h, :ci.w]
+                c_sc_slice[:] = close_bg
+                cv2.addWeighted(c_sc_slice, 0.45, c_roi, 0.55, 0, c_roi)
 
             cv2.rectangle(frame, (ci.x, ci.y), (ci.x + ci.w, ci.y + ci.h), close_border, 1, cv2.LINE_AA)
             c_font_scale = 0.34 * scale

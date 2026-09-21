@@ -15,6 +15,7 @@ import numpy as np
 from src.hand_tracker import HandData
 from src.objects.base import BaseHolographicObject
 from src.vfx.color_themes import ColorTheme
+from src.vfx.aura import get_aura_cache
 from src.vfx.orb_renderer import Shockwave
 from src.vfx.particles import ParticleSystem
 
@@ -65,6 +66,7 @@ class HolographicCube(BaseHolographicObject):
         self.roll: float = 0.2
 
         # Visual VFX components
+        self.aura_cache = get_aura_cache()
         self.particles = ParticleSystem(num_orbit_particles=45)
         self.shockwaves: List[Shockwave] = []
         self.time_start = time.perf_counter()
@@ -165,21 +167,12 @@ class HolographicCube(BaseHolographicObject):
         for sw in self.shockwaves:
             sw.render(frame, self.theme.shockwave)
 
-        # 2. Render Ambient Volumetric Glow Field (vectorized in-place)
+        # 2. Render Ambient Volumetric Glow Field (cached)
         glow_r = int(scale * 1.5)
         if glow_r > 5:
-            x1 = max(0, int(cx - glow_r))
-            y1 = max(0, int(cy - glow_r))
-            x2 = min(w, int(cx + glow_r))
-            y2 = min(h, int(cy + glow_r))
-            if x2 > x1 and y2 > y1:
-                gx, gy = np.ogrid[y1 - cy:y2 - cy, x1 - cx:x2 - cx]
-                dist = np.sqrt(gx * gx + gy * gy)
-                aura = np.clip(1.0 - (dist / float(glow_r)), 0.0, 1.0) ** 2.2
-                aura_w = np.array(self.theme.inner_glow, dtype=np.float32) * 0.45
-                glow_bgr = aura[:, :, None] * aura_w
-                glow_u8 = np.clip(glow_bgr, 0, 255).astype(np.uint8)
-                cv2.add(frame[y1:y2, x1:x2], glow_u8, dst=frame[y1:y2, x1:x2])
+            self.aura_cache.render_standard_aura(
+                frame, cx, cy, glow_r, self.theme.inner_glow, weight=0.45, power=2.2
+            )
 
         # 3. Compute 3D Rotated Vertices
         s = scale * 0.8
