@@ -25,3 +25,9 @@ htmlcov/
 Thumbs.db
 .vscode/
 .idea/
+
+# Packaging & Build Artifacts
+build/
+dist/
+*.egg-info/
+

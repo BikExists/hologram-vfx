@@ -15,6 +15,7 @@ from src.hand_tracker import HandData
 from src.tracking_worker import AsyncHandTracker, TrackingResult
 from src.objects import HolographicObjectManager, BaseHolographicObject
 from src.ui import UIManager, UIState
+from src.paths import save_screenshot
 from src.vfx.color_themes import THEME_KEYS, get_theme
 from src.vfx.hud import HUD
 from src.vfx.presenter import AspectPreservingPresenter
@@ -408,9 +409,9 @@ class HolographicVFXApp:
                     elif key in (ord("h"), ord("H")):
                         self.hud.toggle_landmarks()
                     elif key in (ord("s"), ord("S")):
-                        filename = f"hologram_capture_{int(time.time())}.png"
-                        cv2.imwrite(filename, frame)
-                        print(f"[Info] Screenshot saved: {filename}")
+                        saved_path = save_screenshot(frame)
+                        if saved_path:
+                            print(f"[Info] Screenshot saved: {saved_path}")
                     elif ord("1") <= key <= ord("6"):
                         target_obj_id = key - ord("0")
                         _, msg = self.select_object(target_obj_id)
