@@ -69,7 +69,7 @@ a = Analysis(
     ['main.py'],
     pathex=['.'],
     binaries=[],
-    datas=mediapipe_datas,
+    datas=mediapipe_datas + [('assets', 'assets')],
     hiddenimports=hidden_imports,
     hookspath=[],
     hooksconfig={},
@@ -103,6 +103,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='assets/icon.ico',
 )
 
 coll = COLLECT(

@@ -19,6 +19,7 @@ htmlcov/
 *.tmp
 *.png
 !assets/*.png
+!assets/*.ico
 
 # Machine / OS / IDE specific
 .DS_Store
@@ -30,4 +31,6 @@ Thumbs.db
 build/
 dist/
 *.egg-info/
+*.zip
+*.exe
 
