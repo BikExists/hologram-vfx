@@ -132,6 +132,8 @@ class HUD:
         two_hand_scale: Optional[float] = None,
         rotation_deg: Optional[float] = None,
         selected_mode_name: str = "STANDARD 2-HAND",
+        tracking_fps: Optional[float] = None,
+        landmark_age_ms: Optional[float] = None,
     ) -> None:
         """Renders HUD overlay elements with responsive layout and aspect-ratio awareness."""
         h, w = frame.shape[:2]
@@ -159,7 +161,11 @@ class HUD:
         tx = tl_x1 + int(10 * scale)
         ty = tl_y1 + int(15 * scale)
 
-        fps_text = f"FPS: {fps:5.1f} ({frame_time_ms:4.1f}ms)"
+        if tracking_fps is not None and tracking_fps > 0:
+            age_str = f" {landmark_age_ms:2.0f}ms" if landmark_age_ms is not None else ""
+            fps_text = f"FPS: {fps:4.1f} | TRK: {tracking_fps:4.1f}{age_str}"
+        else:
+            fps_text = f"FPS: {fps:5.1f} ({frame_time_ms:4.1f}ms)"
         cv2.putText(
             frame, fps_text, (tx, ty),
             cv2.FONT_HERSHEY_SIMPLEX, base_font_scale * 1.08, (255, 255, 255), 1, cv2.LINE_AA,

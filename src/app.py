@@ -11,7 +11,8 @@ import cv2
 import numpy as np
 
 from src.camera import CameraSelector, CameraDeviceInfo
-from src.hand_tracker import HandTracker, HandData
+from src.hand_tracker import HandData
+from src.tracking_worker import AsyncHandTracker, TrackingResult
 from src.objects import HolographicObjectManager, BaseHolographicObject
 from src.ui import UIManager, UIState
 from src.vfx.color_themes import THEME_KEYS, get_theme
@@ -33,6 +34,7 @@ class HolographicVFXApp:
         available_cameras: Optional[list] = None,
         include_virtual: bool = False,
         skip_welcome: bool = False,
+        sync_tracking: bool = False,
     ):
         self.width = width
         self.height = height
@@ -56,7 +58,7 @@ class HolographicVFXApp:
         # Expose self.camera for backward compatibility
         self.camera = self.camera_selector
 
-        self.tracker = HandTracker()
+        self.tracker = AsyncHandTracker(sync_mode=sync_tracking)
         self.hud = HUD()
 
         # Universal holographic object management system (Orb=1..6)
@@ -176,9 +178,11 @@ class HolographicVFXApp:
         self.fps = sum(self._fps_history) / len(self._fps_history)
         self.frame_time_ms = dt * 1000.0
 
-        # 2. Hand Tracking (Multi-Hand detection up to 2 hands)
-        detected_hands: List[HandData] = self.tracker.process_frame_multi(frame, timestamp=now)
-        hand_data: Optional[HandData] = self.tracker.last_valid_hand
+        # 2. Hand Tracking (Decoupled submit & non-blocking query)
+        self.tracker.submit_frame(frame, timestamp=now)
+        tracking_result = self.tracker.get_latest_result(max_stale_ms=200.0)
+        detected_hands: List[HandData] = tracking_result.hands
+        hand_data: Optional[HandData] = tracking_result.primary_hand
         hand_detected = len(detected_hands) > 0
 
         # 3. Holographic UI Update (Coordinates gestures, welcome dismiss, menu hit-tests, actions)
@@ -257,6 +261,8 @@ class HolographicVFXApp:
                 two_hand_scale=obj.two_hand_scale,
                 rotation_deg=rot_deg,
                 selected_mode_name=obj.get_mode_display_name(),
+                tracking_fps=self.tracker.tracking_fps,
+                landmark_age_ms=self.tracker.last_landmark_age_ms,
             )
 
         # 8. Render Holographic UI Layer (Welcome screen, Menu, Cursor, Gesture Reticle)
@@ -265,6 +271,11 @@ class HolographicVFXApp:
         telemetry = {
             "fps": self.fps,
             "frame_time_ms": self.frame_time_ms,
+            "tracking_fps": self.tracker.tracking_fps,
+            "tracking_time_ms": self.tracker.processing_time_ms,
+            "landmark_age_ms": self.tracker.last_landmark_age_ms,
+            "tracking_dropped_frames": self.tracker.dropped_frames_count,
+            "tracking_is_async": not self.tracker.sync_mode,
             "object_type": obj.name,
             "object_x": obj_x,
             "object_y": obj_y,

@@ -73,6 +73,11 @@ def parse_args():
         help="Skip the holographic welcome screen on startup",
     )
     parser.add_argument(
+        "--sync-tracking",
+        action="store_true",
+        help="Run hand tracking synchronously on main thread (disables decoupled background worker)",
+    )
+    parser.add_argument(
         "--benchmark",
         type=int,
         default=None,
@@ -145,15 +150,20 @@ def main():
         headless=args.headless,
         include_virtual=args.include_virtual,
         skip_welcome=args.skip_welcome or (args.benchmark is not None),
+        sync_tracking=args.sync_tracking,
     )
 
     if args.benchmark:
-        print(f"[Benchmark] Running {args.benchmark} frames...")
+        mode_str = "Synchronous" if args.sync_tracking else "Asynchronous Decoupled"
+        print(f"[Benchmark] Running {args.benchmark} frames ({mode_str} Tracking)...")
         if not app.camera_selector.open():
             print("[Benchmark] Initial camera open failed, using fallback...")
 
         start_t = time.perf_counter()
         latencies = []
+        tracking_fps_list = []
+        landmark_ages = []
+        dropped_frames = 0
         sample_frame = None
 
         for i in range(args.benchmark):
@@ -163,6 +173,11 @@ def main():
             latencies.append(f_dur * 1000.0)
             if ret and frame is not None:
                 sample_frame = frame
+                if "tracking_fps" in telemetry and telemetry["tracking_fps"] > 0:
+                    tracking_fps_list.append(telemetry["tracking_fps"])
+                if "landmark_age_ms" in telemetry and telemetry["landmark_age_ms"] > 0:
+                    landmark_ages.append(telemetry["landmark_age_ms"])
+                dropped_frames = telemetry.get("tracking_dropped_frames", 0)
 
         total_t = time.perf_counter() - start_t
         app.close()
@@ -173,12 +188,21 @@ def main():
         max_lat = max(latencies)
 
         print("\n--- Benchmark Results ---")
-        print(f" Total Frames : {len(latencies)}")
-        print(f" Total Time   : {total_t:.2f} s")
-        print(f" Average FPS  : {avg_fps:.1f} FPS")
-        print(f" Avg Latency  : {avg_lat:.2f} ms")
-        print(f" Min Latency  : {min_lat:.2f} ms")
-        print(f" Max Latency  : {max_lat:.2f} ms")
+        print(f" Total Frames       : {len(latencies)}")
+        print(f" Total Time         : {total_t:.2f} s")
+        print(f" Render FPS         : {avg_fps:.1f} FPS")
+        print(f" Avg Frame Latency  : {avg_lat:.2f} ms")
+        print(f" Min Latency        : {min_lat:.2f} ms")
+        print(f" Max Latency        : {max_lat:.2f} ms")
+        print(f" Tracking Mode      : {mode_str}")
+        if tracking_fps_list:
+            avg_trk_fps = sum(tracking_fps_list) / len(tracking_fps_list)
+            print(f" Tracking Worker FPS: {avg_trk_fps:.1f} FPS")
+        if landmark_ages:
+            avg_age = sum(landmark_ages) / len(landmark_ages)
+            print(f" Avg Landmark Age   : {avg_age:.2f} ms")
+        if not args.sync_tracking:
+            print(f" Dropped Frames     : {dropped_frames}")
         print("-------------------------")
 
         if args.save_sample and sample_frame is not None:
