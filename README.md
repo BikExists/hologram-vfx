@@ -1,7 +1,7 @@
 # Hand-Tracked Holographic VFX System
 
 [![Windows Standalone](https://img.shields.io/badge/Windows-v0.1.1--dev-blue?logo=windows)](https://github.com/BikExists/hologram-vfx/releases/tag/v0.1.1-dev)
-[![Python Tests](https://img.shields.io/badge/Tests-191%20Passed-brightgreen)](https://github.com/BikExists/hologram-vfx)
+[![Python Tests](https://img.shields.io/badge/Tests-197%20Passed-brightgreen)](https://github.com/BikExists/hologram-vfx)
 
 A real-time interactive computer vision application that tracks your hands via webcam to manipulate virtual 3D holographic objects and visual effects in mid-air.
 
