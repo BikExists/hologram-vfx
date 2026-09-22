@@ -24,7 +24,7 @@ ASSETS_DIR = REPO_ROOT / "assets"
 SPEC_FILE = REPO_ROOT / "HolographicVFX.spec"
 ISS_FILE = REPO_ROOT / "packaging" / "installer.iss"
 
-VERSION = "0.1.0-dev"
+VERSION = "0.1.1-dev"
 APP_NAME = "HolographicVFX"
 ZIP_NAME = f"{APP_NAME}-v{VERSION}-Windows-x64.zip"
 SETUP_NAME = f"{APP_NAME}-v{VERSION}-Windows-x64-Setup.exe"

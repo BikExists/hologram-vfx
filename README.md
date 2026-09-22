@@ -1,194 +1,239 @@
 # Hand-Tracked Holographic VFX System
 
-A high-performance real-time interactive computer vision application that tracks a user's hand via webcam to manipulate a virtual glowing holographic energy orb.
+[![Windows Standalone](https://img.shields.io/badge/Windows-v0.1.1--dev-blue?logo=windows)](https://github.com/BikExists/hologram-vfx/releases/tag/v0.1.1-dev)
+[![Python Tests](https://img.shields.io/badge/Tests-191%20Passed-brightgreen)](https://github.com/BikExists/hologram-vfx)
+
+A real-time interactive computer vision application that tracks your hands via webcam to manipulate virtual 3D holographic objects and visual effects in mid-air.
 
 ---
 
-## Features
+## What Holographic VFX Does
 
-- **Live Webcam Pipeline**: Real-time camera feed capture with horizontal mirroring for an intuitive mirror-like interaction experience. Includes automatic fallback to DirectShow backend on Windows.
-- **Robust 21-Landmark Hand Tracking**: Uses MediaPipe to track the wrist, knuckles, and all 5 fingertips in 3D. Includes a lost-tracking grace period to prevent flickering during rapid hand motions.
-- **Scale-Invariant Pinch-to-Grab**: Calculates pinch distance normalized by the rigid anatomical palm scale (Wrist to Middle MCP span). Features Schmitt-trigger hysteresis to eliminate grab/release boundary jitter.
-- **Dynamic Hand Openness Sizing**: Evaluates normalized fingertip extension across all fingers. Curling your hand into a fist shrinks the orb down to a compact core, while spreading fingers wide expands it into a massive celestial energy sphere.
-- **Multi-Tier Holographic VFX Engine**:
-  - **Radial Glow**: Vectorized exponential falloff with white-hot core, inner glowing mantle, and diffuse atmospheric halo.
-  - **3D Rotating Gyroscopic Rings**: Tri-axial orbital rings with elliptical 3D perspective projection, orbital tick marks, and rotating dashed sci-fi reticles.
-  - **Orbiting 3D Particle Cloud**: 60+ sparkles orbiting in 3D space with depth-based perspective scaling, alpha modulation, and transient radial burst explosions on grab/release.
-  - **Electric Plasma Tether**: Fractal lightning arcs dynamically connecting the pinch point (thumb & index fingertips) to the orb center when grabbed.
-  - **Shockwave Ripples**: Expanding holographic energy ripples triggered upon grabbing or releasing the orb.
-  - **Scanlines & Hologram Flicker**: Subtle holographic interference pattern for a physical sci-fi aesthetic.
-- **One-Euro & EMA Jitter Filtering**: High precision and zero jitter when holding the hand still, with adaptive low latency during rapid movement.
-- **Sci-Fi Heads-Up Display (HUD)**: Glass-morphic UI showing live FPS, frame latency, tracking status, hand openness gauge bar, and keyboard shortcuts.
-- **Universal Cross-Platform Camera Architecture**:
-  - **Platform-Optimal Backends**: Dynamic backend selection using DirectShow (`CAP_DSHOW`) on Windows, Video4Linux (`CAP_V4L2`) on Linux, and AVFoundation (`CAP_AVFOUNDATION`) on macOS, with universal `CAP_ANY` fallback.
-  - **Dynamic Resolution Adaptation**: Viewport boundary margins, orb physics, and HUD scale automatically to native camera capabilities (e.g. 720p, 1080p, 480p).
-  - **Multi-Camera Device Fallback**: Automatically tries alternative physical cameras if Camera 0 is absent or busy, gracefully falling back to procedural Synthetic mode if no hardware is available.
-  - **Mid-Stream Disconnection Recovery**: Transparently recovers and transitions to synthetic feed if a physical USB webcam is disconnected while running.
-  - **Seamless Camera Switching**: Switch input sources at runtime via key `[V]` or direct jump `[1-9]`.
-- **Universal Holographic Object System**:
-  - **1 → Energy Orb**: The reference holographic celestial sphere featuring multi-layer exponential radial glow, tri-axial rotating gyroscopic rings, Keplerian orbital sparkles, electric plasma tethers, and shockwaves.
-  - **2 → Cyber Cube**: A high-tech 3D rotating wireframe cube featuring perspective projection, glowing edges, 6 depth-sorted translucent faceted faces with scanlines, luminous vertex node beacons, 3D orbital particles, and pinch tethers.
-  - **3 → Holographic Planet**: A planetary body with atmospheric limb-darkening glow, rotating latitude bands and wireframe meridians, tilted concentric Saturn-like rings with depth-sorted front/back occlusion, and an orbiting moon with a particle dust trail.
-  - **Seamless State Transfer**: Preserves spatial position, velocity, openness scale, and theme when switching between objects at runtime.
-  - **Unified Object Contract**: Extensible base class ensuring all current and future holographic objects operate in unified pixel coordinates with full pinch-grab, spring physics, and openness scaling support.
-- **Holographic Interaction Mode Selector & Independent Dual-Hand Control**:
-  - **Mode Selection (`[M]`)**: Seamlessly cycle between `Standard 2-Hand Transform` and `Independent Dual-Hand Control`.
-  - **Primary Hand (Left)**: Controls spatial position via hand movement and object rotation via hand orientation (Wrist $\to$ Middle MCP vector) with continuous angular unwrapping.
-  - **Secondary Hand (Right)**: Acts as an independent remote controller anywhere in the frame. Hand openness controls scale; hand orientation relative to entry baseline steps through color themes with deadband hysteresis.
-  - **Strict Control Independence**: Secondary hand position/movement does NOT affect object position or rotation; primary hand does NOT affect scale or color theme.
-  - **Zero-Jump Dynamic Baselines**: Seamless transitions between 0, 1, and 2 hands, and zero transform jump when cycling modes.
-- **Two-Hand Holographic Object Transform Interaction**:
-  - **Inter-Hand Distance $\rightarrow$ Scale**: Dynamic scale manipulation based on the relative distance between both detected hands, clamped safely to viewport boundaries.
-  - **Inter-Hand Orientation $\rightarrow$ Rotation**: Dynamic rotation calculated from the angular vector between both hands, with continuous angle delta unwrapping to prevent $\pm 180^\circ$ inversion jumps.
-  - **Universal Object Integration**: Consistently drives 3D gyroscopic rings on the Orb, 3D Euler rotation on the Cyber Cube, and Saturnian ring tilt and meridian orientation on the Planet.
-  - **Seamless Multi-Mode Transitions**: Zero-jump baseline anchoring when engaging two hands, transform preservation when releasing to one or zero hands, and independent gesture filters per hand to avoid crosstalk.
-- **Multiple Color Themes**:
-  - **Cyber Cyan** (Classic electric hologram)
-  - **Solar Flare** (Warm golden amber star)
-  - **Neon Violet** (Synthwave cyberpunk magenta)
-  - **Emerald Matrix** (Digital phosphor green)
+Holographic VFX turns your standard webcam into an interactive touchless spatial interface. By tracking your hand joints in real time, you can:
+
+- **Grab and Move**: Pinch your thumb and index finger together to grab virtual 3D objects and move them through space.
+- **Dynamic Scale**: Open your hand wide to expand objects into massive glowing energy structures, or close your fingers into a fist to compress them down into a compact core.
+- **Dual-Hand Control**: Use two hands simultaneously to manipulate orientation, distance-based scaling, or independently control scale and color themes.
+- **Touchless Holographic Menu**: Hover your open palm in the top-right corner to summon a floating sci-fi menu, then pinch to select objects and settings.
+- **Instant Snapshots**: Capture high-resolution screenshots of your holographic interactions directly to your Windows Pictures library.
 
 ---
 
-## Project Structure
+## Feature Overview
 
+- **Asynchronous Decoupled Tracking Engine**: Hand tracking and rendering run on separate threads. The render engine updates smoothly without being locked to webcam capture latency.
+- **6 Interactive Holographic Objects**:
+  1. **Energy Orb** (`[1]`): The signature holographic sphere with tri-axial rotating gyroscopic rings, orbiting Keplerian particle cloud, electric plasma pinch tethers, and shockwaves.
+  2. **Cyber Cube** (`[2]`): A rotating 3D wireframe cube with glowing perspective edges, depth-sorted scanline faces, and luminous vertex beacons.
+  3. **Holographic Planet** (`[3]`): A celestial planet with atmospheric limb glow, rotating latitude bands, concentric Saturn-like rings, and an orbiting moon with a dust trail.
+  4. **Ghost Orchid** (`[4]`): An organic holographic botanical structure with procedural bioluminescent petals.
+  5. **Bhondu Face** (`[5]`): A stylized geometric character hologram.
+  6. **Jellyfish** (`[6]`): An undulating bioluminescent deep-sea creature with dynamic flowing tentacles.
+- **4 Holographic Color Themes**: Cyber Cyan, Solar Flare, Neon Violet, and Emerald Matrix.
+- **Aspect-Ratio Aware Presentation**: Automatically conforms to any camera resolution (16:9, 4:3, widescreen) with viewport boundary confinement.
+- **Multi-Camera Support**: Seamlessly discovers and hot-switches between available camera devices at runtime.
+
+---
+
+## Supported Platform Status
+
+| Platform | Status | Current Version | Notes |
+| :--- | :--- | :--- | :--- |
+| **Windows (x64)** | **Available** | `v0.1.1-dev` | Standalone Installer and Portable ZIP available. |
+| **macOS** | *In Development* | — | macOS packaging is currently paused and will be validated on physical Mac hardware in a future release. |
+| **Linux** | *Source Only* | — | Can be run from Python source with V4L2. |
+
+---
+
+## Downloads (Windows Standalone)
+
+Latest Release: [**HolographicVFX v0.1.1-dev**](https://github.com/BikExists/hologram-vfx/releases/tag/v0.1.1-dev)
+
+| Package | Recommended For | Direct Download Link |
+| :--- | :--- | :--- |
+| **Windows Installer (`.exe`)** | Most Users | [Download Setup (.exe)](https://github.com/BikExists/hologram-vfx/releases/download/v0.1.1-dev/HolographicVFX-v0.1.1-dev-Windows-x64-Setup.exe) |
+| **Portable Distribution (`.zip`)** | Zero-install / USB drives | [Download Portable (.zip)](https://github.com/BikExists/hologram-vfx/releases/download/v0.1.1-dev/HolographicVFX-v0.1.1-dev-Windows-x64.zip) |
+
+*Neither package requires Python, Git, or command-line setup. All runtimes, models, and dependencies are self-contained.*
+
+### Verification Checksums (SHA-256)
+
+| Artifact | File Size | SHA-256 Checksum |
+| :--- | :--- | :--- |
+| `HolographicVFX-v0.1.1-dev-Windows-x64-Setup.exe` | 171.40 MB (179,724,183 bytes) | `65E57E6EFE74106FAAB5CC5A68A781C62EB36C12111AAEAA82AC16BF39C741A5` |
+| `HolographicVFX-v0.1.1-dev-Windows-x64.zip` | 244.36 MB (256,230,181 bytes) | `0BB08E172F4FFE0197BACA12B5E34A196F7A79B04B216F49752C9AE37F9B93EE` |
+
+---
+
+## Performance Expectations
+
+- **Real-World Webcam Experience**: In normal usage with a webcam, the application runs smoothly at real-time speeds (typically 30–60 FPS, matching your webcam hardware capabilities). The asynchronous tracking engine decouples visual rendering from computer-vision inference, preventing frame stutter during rapid hand motions.
+- **Synthetic Benchmark Mode**: An internal diagnostic tool used during automated testing and CI. Because it does not wait for a physical camera sensor, benchmark results can reach 200–300+ FPS in synthetic/headless environments. This reflects engine throughput rather than expected webcam frame rates.
+
+---
+
+## System Requirements
+
+- **Operating System**: 64-bit Windows 10 or Windows 11.
+- **Processor**: 64-bit x86_64 CPU (Intel Core or AMD Ryzen).
+- **Webcam**: Any standard integrated laptop camera or external USB webcam.
+- **Graphics**: Any standard integrated or dedicated graphics processor supporting modern desktop display.
+- **Storage**: ~500 MB free disk space for installation.
+
+---
+
+## Installation & First Run
+
+### Option A: Windows Installer (Recommended)
+1. Download `HolographicVFX-v0.1.1-dev-Windows-x64-Setup.exe`.
+2. Run the installer. It installs per-user into `%LOCALAPPDATA%\Programs\HolographicVFX` (no administrator privileges or UAC prompts required).
+3. Choose whether to place a shortcut on your Desktop.
+4. Launch **Holographic VFX** from your Desktop or Start Menu.
+
+### Option B: Portable ZIP
+1. Download `HolographicVFX-v0.1.1-dev-Windows-x64.zip`.
+2. Right-click the `.zip` file and select **Extract All...**.
+3. Open the extracted folder and double-click `HolographicVFX.exe`.
+
+---
+
+## Windows SmartScreen Notice
+
+Because this is a pre-release development build (`v0.1.1-dev`), the binaries have not yet been signed with an expensive commercial Authenticode certificate. When you run the installer or portable executable for the first time, Windows Defender SmartScreen may display:
+
+> **"Windows protected your PC"**  
+> *Microsoft Defender SmartScreen prevented an unrecognized app from starting. Running this app might put your PC at risk.*  
+> *Publisher: Unknown publisher*
+
+### How to Proceed:
+1. Click **More info** on the SmartScreen dialog.
+2. Confirm that the application name shows `HolographicVFX.exe` or `HolographicVFX-v0.1.1-dev-Windows-x64-Setup.exe`.
+3. Click **Run anyway**.
+
+*Commercial code signing will be added in a future production release milestone once formal distribution certificates are provisioned.*
+
+---
+
+## Interactive Controls & Gestures
+
+| Gesture / Key | Action | Details |
+| :--- | :--- | :--- |
+| **Pinch (Thumb + Index)** | **Grab & Move / Click** | Pinch to grab the holographic object; pinch-to-click on menu buttons. |
+| **Open Hand** | **Expand Scale** | Spreading fingers wide increases object radius and energy intensity. |
+| **Closed Fist** | **Shrink Scale** | Clenching fingers shrinks the object down to a dense core. |
+| **Top-Right Palm Dwell** | **Toggle Menu** | Move your open palm to the `[ MENU ]` trigger zone at top-right to open the menu. |
+| **Secondary Hand (Open/Close)** | **Scroll Menu** | While the menu is open, open or close your other hand to scroll through items. |
+| **`[1]` .. `[6]`** | **Switch Object** | `1` = Orb, `2` = Cube, `3` = Planet, `4` = Ghost Orchid, `5` = Bhondu, `6` = Jellyfish. |
+| **`[Tab]` / `[I]`** | **Toggle Interaction Mode** | Cycles between **Standard 2-Hand Transform** and **Independent Dual-Hand Control**. |
+| **`[C]`** | **Cycle Color Themes** | Steps through Cyber Cyan $\rightarrow$ Solar Flare $\rightarrow$ Neon Violet $\rightarrow$ Emerald Matrix. |
+| **`[V]`** | **Switch Camera Source** | Switches to the next available connected webcam. |
+| **`[R]`** | **Reset Position** | Re-centers the holographic object to the middle of your screen. |
+| **`[H]`** | **Toggle Skeleton Overlay** | Shows or hides the 21-point MediaPipe hand skeleton joints overlay. |
+| **`[S]`** | **Save Screenshot** | Saves a timestamped PNG image to your Pictures folder. |
+| **`[Space]` / `[Enter]`** | **Dismiss Welcome Screen** | Dismisses the startup tutorial overlay (showing your hand also dismisses it). |
+| **`[M]`** | **Keyboard Menu Toggle** | Opens or closes the touchless holographic menu. |
+| **`[Q]` / `[ESC]`** | **Close Menu / Quit** | Closes the open menu, or exits the application cleanly. |
+
+---
+
+## Screenshot Storage & User Data
+
+When you press `[S]`, Holographic VFX captures a high-resolution screenshot and saves it directly to:
+
+```text
+%USERPROFILE%\Pictures\HolographicVFX\
 ```
-antigravity/
-├── src/
-│   ├── __init__.py
-│   ├── filters.py          # OneEuroFilter, LowPassFilter, PointFilter, EMAFilter
-│   ├── gestures.py         # Scale-invariant pinch hysteresis and openness estimation
-│   ├── hand_tracker.py     # MediaPipe Hands integration, landmark extraction & skeleton overlay
-│   ├── interaction.py      # OrbController state machine, spring-damper kinematics, boundaries
-│   ├── camera.py           # Cross-platform VideoCapture manager, selector, and SyntheticCamera
-│   ├── app.py              # Main HolographicVFXApp loop orchestrating all subsystems
-│   ├── objects/            # Extensible Universal Holographic Object System
-│   │   ├── __init__.py     # Module exports
-│   │   ├── base.py         # Common BaseHolographicObject contract in pixel coordinates
-│   │   ├── orb.py          # HolographicOrb (multi-layer glow, 3D rings, particles, tethers)
-│   │   ├── cube.py         # HolographicCube (3D rotation, wireframe edges, scanlines, faces)
-│   │   ├── planet.py       # HolographicPlanet (limb glow, bands, rings, orbiting moon)
-│   │   └── manager.py      # HolographicObjectManager & runtime object switcher
-│   └── vfx/
-│       ├── __init__.py
-│       ├── color_themes.py # 4 holographic color themes and palette definitions
-│       ├── particles.py    # 3D Keplerian orbital particles and burst physics
-│       ├── orb_renderer.py # Multi-layer exponential glow, rotating rings, tethers, shockwaves
-│       └── hud.py          # Sci-fi glass panels, FPS counter, openness gauge, object HUD
-├── tests/
-│   ├── __init__.py
-│   ├── test_camera_robustness.py # Cross-platform backend, fallback, and disconnect tests
-│   ├── test_camera_selector.py   # Camera detection, cycling, and device indexing tests
-│   ├── test_filters.py     # Smoothing filter verification
-│   ├── test_gestures.py    # Gesture math, pinch hysteresis, and openness tests
-│   ├── test_vfx.py         # VFX rendering, particles, color themes, and ROI clipping tests
-│   ├── test_interaction.py # Orb kinematics, grab/release states, and viewport boundaries
-│   ├── test_objects.py     # Holographic object contract, switching, and rendering tests
-│   ├── test_two_hand_interaction.py # Two-hand distance scaling, rotation, unwrapping, and transitions
-│   ├── test_dual_hand_mode.py # Selectable interaction modes and independent dual-hand tests
-│   └── test_integration.py # Headless end-to-end synthetic pipeline integration test
-├── main.py                 # CLI entry point supporting live camera, synthetic, and benchmark modes
-├── requirements.txt        # Frozen package dependencies
-└── README.md               # Documentation and user manual
-```
+*(Typically: `C:\Users\<YourUsername>\Pictures\HolographicVFX\`)*
+
+**User Data Safety**: Your screenshots are stored in your personal Pictures library, completely separate from the application installation directory. Uninstalling or updating the application will **never** delete or alter your screenshots.
 
 ---
 
-## Installation
+## Uninstallation
 
-Ensure Python 3.10 or 3.11 is available (or use `uv`):
+If you installed Holographic VFX using the Windows Installer, you can remove it cleanly at any time using any of these methods:
 
-```bash
-# Create virtual environment
-uv venv .venv --python 3.11
-# Or: python -m venv .venv
+- **Start Menu**: Open the Start Menu, locate **Uninstall Holographic VFX**, and click it.
+- **Windows Settings**: Go to **Settings** $\rightarrow$ **Apps** $\rightarrow$ **Installed apps**, search for **Holographic VFX**, click the `...` menu, and select **Uninstall**.
+- **Control Panel**: Open **Control Panel** $\rightarrow$ **Programs and Features**, select **Holographic VFX**, and click **Uninstall**.
 
-# Activate environment
+The uninstaller cleanly removes all application files, shortcuts, and registry entries. As noted above, your captured screenshots are safely preserved in your Pictures folder.
+
+*(If you used the Portable ZIP version, simply delete the extracted folder).*
+
+---
+
+## Troubleshooting
+
+### Camera Not Detected or Black Screen
+1. **Check Camera Connections**: Verify your webcam is plugged in and recognized in Windows Device Manager.
+2. **Windows Privacy Settings**: Ensure camera permissions are enabled:
+   - Go to **Windows Settings** $\rightarrow$ **Privacy & security** $\rightarrow$ **Camera**.
+   - Make sure **Camera access** is toggled **On**.
+   - Make sure **Let desktop apps access your camera** is toggled **On**.
+3. **Camera Already in Use**: Close any other applications that might have exclusive lock on your camera (such as Zoom, Microsoft Teams, Discord, OBS Studio, Skype, or web browsers).
+4. **Switch Cameras**: If you have multiple cameras (such as a virtual camera or secondary webcam), press `[V]` to cycle to the next camera source.
+
+### Application Shows SmartScreen Warning on Startup
+This is normal for pre-release unsigned development builds. See the [Windows SmartScreen Notice](#windows-smartscreen-notice) section above for instructions.
+
+### Application Closes Immediately on Launch
+- If using the **Portable ZIP**, ensure you extracted the archive fully rather than launching `HolographicVFX.exe` from inside the Windows zip viewer.
+- Ensure your system meets the [System Requirements](#system-requirements).
+
+---
+
+## Known Limitations
+
+- **Unsigned Binaries**: Pre-release builds show the Windows SmartScreen "Unknown Publisher" dialog on first run.
+- **OpenCV Window Title Bar Icon**: The HighGUI window on Windows displays standard operating system window decorations; custom branding appears on the executable, shortcuts, installer, and taskbar.
+- **macOS Build**: Standalone packaging for macOS is currently in development and intentionally paused until verified on physical Apple Silicon hardware.
+
+---
+
+## Building from Source (Developers)
+
+If you wish to contribute to the project or build the application from source:
+
+### Prerequisites
+- Python 3.10 or 3.11 (64-bit)
+- Git
+
+### Setup & Run
+```powershell
+# Clone the repository
+git clone https://github.com/BikExists/hologram-vfx.git
+cd hologram-vfx
+
+# Create and activate virtual environment
+python -m venv .venv
 .venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
-```
 
----
-
-## How to Run
-
-### 1. Interactive Webcam Mode (Default)
-Launch the application with your default webcam:
-
-```bash
+# Run the application
 python main.py
 ```
 
-To specify camera ID or color theme:
-```bash
-python main.py --camera-id 0 --theme cyan
-python main.py --theme solar
-python main.py --theme violet
-python main.py --theme matrix
-```
-
-### 2. Camera Discovery & Validation
-By default, automated probing and tests discover **native physical cameras** and the **Synthetic Feed**, excluding virtual software devices (e.g. Phone Link, OBS, NVIDIA Broadcast) to guarantee fast startup and test stability without third-party virtual drivers:
-
-```bash
-# List native physical cameras and synthetic feed:
-python main.py --list-cameras
-
-# Include software / virtual cameras if needed:
-python main.py --list-cameras --include-virtual
-
-# Manually select a specific camera by ID (physical or virtual):
-python main.py --camera-id 1
-```
-
-### 3. Synthetic Test Mode (No Webcam Required)
-To run the full visual application without needing a webcam:
-
-```bash
-python main.py --synthetic --theme cyan
-```
-
-### 4. Automated Performance Benchmark Mode
-Runs for $N$ frames, records average FPS and min/max frame latencies, and cleanly exits:
-
-```bash
-# Physical native camera benchmark:
-python main.py --benchmark 120 --headless
-
-# Synthetic feed benchmark:
-python main.py --benchmark 120 --synthetic --headless
-```
-
----
-
-## Interactive Controls
-
-| Key / Gesture | Action |
-|---|---|
-| **Pinch (Thumb + Index)** | Grab and control the active holographic object (Single Hand mode) |
-| **Move Hand** | Move the object smoothly across the viewport |
-| **Open Hand** | Expand the object's size up to maximum diameter |
-| **Close Hand (Fist)** | Shrink the object down to a compact core |
-| **M** | Cycle interaction mode: `Standard 2-Hand` $\leftrightarrow$ `Independent Dual-Hand` |
-| **Two Hands (Standard Mode)** | Distance $\rightarrow$ Scale; Relative Angle $\rightarrow$ Rotation; Midpoint $\rightarrow$ Position |
-| **Two Hands (Independent Mode)** | Left (Primary) $\rightarrow$ Position + Rotation; Right (Secondary) $\rightarrow$ Scale (Openness) + Theme (Angle) |
-| **1 / 2 / 3** | Switch active object: `1 = Energy Orb`, `2 = Cyber Cube`, `3 = Planet` |
-| **V** | Cycle to the next available camera source |
-| **4-9** | Jump directly to camera device index 4-9 |
-| **C** | Cycle color themes (Cyan $\rightarrow$ Solar $\rightarrow$ Violet $\rightarrow$ Matrix) |
-| **R** | Reset active object to the center of the screen |
-| **H** | Toggle holographic hand skeleton joints overlay |
-| **S** | Save high-resolution screenshot |
-| **Q / ESC** | Exit the application cleanly |
-
----
-
-## Running the Automated Test Suite
-
-Execute the full automated test suite with pytest:
-
-```bash
+### Running Tests
+```powershell
 pytest -v
 ```
+
+### Building the Windows Standalone Packages
+```powershell
+# Compiles PyInstaller standalone, creates Portable ZIP, and builds Inno Setup Installer:
+python packaging\build_windows.py --all
+```
+*(Requires [Inno Setup 6](https://jrsoftware.org/isdl.php) installed for the installer package).*
+
+---
+
+## Project Information & Legal
+
+- **Repository**: [https://github.com/BikExists/hologram-vfx](https://github.com/BikExists/hologram-vfx)
+- **Issues & Support**: [https://github.com/BikExists/hologram-vfx/issues](https://github.com/BikExists/hologram-vfx/issues)
+- **Author / Publisher**: BikExists
+- **Third-Party Open Source**: Built with [MediaPipe](https://github.com/google/mediapipe), [OpenCV](https://opencv.org/), [NumPy](https://numpy.org/), and [Pillow](https://python-pillow.org/).
+- **Licensing**: Formal licensing documentation will be established in upcoming release milestones prior to the v1.0.0 production release.
