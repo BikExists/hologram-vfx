@@ -63,7 +63,7 @@ Explore the full documentation suite for guides, references, and technical detai
 ## Downloads (Windows Standalone)
 
 Latest Release: [**HolographicVFX v1.0.0**](https://github.com/BikExists/hologram-vfx/releases/tag/v1.0.0)
-
+(WiWi Vers)
 | Package | Best For | Download |
 | :--- | :--- | :--- |
 | **Windows Setup Installer (`.exe`)** | Most Users | [**Download Setup (.exe)**](https://github.com/BikExists/hologram-vfx/releases/download/v1.0.0/HolographicVFX-v1.0.0-Windows-x64-Setup.exe) |
