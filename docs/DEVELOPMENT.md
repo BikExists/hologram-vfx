@@ -181,7 +181,7 @@ python packaging\build_windows.py --all
 ### Build Artifacts:
 Build outputs are placed in `dist/` (which is excluded from Git via `.gitignore`):
 * `dist\HolographicVFX\`: Standalone application folder.
-* `dist\HolographicVFX-v0.1.1-dev-Windows-x64.zip`: Portable distribution archive.
-* `dist\HolographicVFX-v0.1.1-dev-Windows-x64-Setup.exe`: Inno Setup installer.
+* `dist\HolographicVFX-v1.0.0-Windows-x64.zip`: Portable distribution archive.
+* `dist\HolographicVFX-v1.0.0-Windows-x64-Setup.exe`: Inno Setup installer.
 
 > **Important**: Never commit `dist/`, `build/`, `.exe`, or `.zip` files to the Git repository.

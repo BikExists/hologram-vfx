@@ -2,8 +2,8 @@
 
 Workflow:
 1. PyInstaller: Compiles HolographicVFX into dist/HolographicVFX/ (--onedir, windowed, icon)
-2. Portable ZIP: Packages dist/HolographicVFX into dist/HolographicVFX-v0.1.0-dev-Windows-x64.zip
-3. Inno Setup: Compiles packaging/installer.iss into dist/HolographicVFX-v0.1.0-dev-Windows-x64-Setup.exe
+2. Portable ZIP: Packages dist/HolographicVFX into dist/HolographicVFX-v1.0.0-Windows-x64.zip
+3. Inno Setup: Compiles packaging/installer.iss into dist/HolographicVFX-v1.0.0-Windows-x64-Setup.exe
 
 Usage:
     python packaging/build_windows.py [--all | --zip | --installer | --pyinstaller]
@@ -24,7 +24,7 @@ ASSETS_DIR = REPO_ROOT / "assets"
 SPEC_FILE = REPO_ROOT / "HolographicVFX.spec"
 ISS_FILE = REPO_ROOT / "packaging" / "installer.iss"
 
-VERSION = "0.1.1-dev"
+VERSION = "1.0.0"
 APP_NAME = "HolographicVFX"
 ZIP_NAME = f"{APP_NAME}-v{VERSION}-Windows-x64.zip"
 SETUP_NAME = f"{APP_NAME}-v{VERSION}-Windows-x64-Setup.exe"

@@ -2,11 +2,25 @@
 
 All notable changes and architectural milestones for **Holographic VFX** are documented here based on repository commit history.
 
-The project follows semantic versioning principles with development pre-releases (`v0.x.x-dev`).
+The project follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
 ---
 
-## [Unreleased] (main branch)
+## [1.0.0] - 2026-09-22
+
+### Phase E: Final v1.0.0 Windows Standalone Release
+* **Production Standalone Release**: Official release of standalone Windows x64 packages: portable ZIP (`HolographicVFX-v1.0.0-Windows-x64.zip`) and Inno Setup installer (`HolographicVFX-v1.0.0-Windows-x64-Setup.exe`).
+* **Version Alignment**: Unified package metadata, docs, and build scripts to version 1.0.0.
+
+### Phase D: Legal, Privacy & Licensing
+* **Apache License 2.0**: Formally adopted Apache License, Version 2.0 (`LICENSE`).
+* **Privacy & Data Security Notice**: Established `docs/PRIVACY.md` detailing local RAM processing, zero network activity, and transparent screenshot handling.
+* **Third-Party Notices**: Created `THIRD-PARTY-NOTICES.md` with explicit attribution and licensing details for OpenCV, MediaPipe, NumPy, and bundled model files.
+* **Terms of Use**: Added `docs/TERMS.md` outlining pre-release disclaimer, safety, and maintainer rights.
+
+### Phase C: Documentation & Architecture
+* **Documentation Suite**: Added `docs/USER_GUIDE.md`, `docs/TROUBLESHOOTING.md`, `docs/FAQ.md`, `docs/SYSTEM_REQUIREMENTS.md`, and updated `docs/DEVELOPMENT.md` with full architectural lifecycle and threading diagrams.
+* **Documentation Fact-Checking Audit**: Audited every factual claim against actual codebase behavior and automated tests.
 
 ### Phase B: Windows Standalone Release Hardening (`988db8f`)
 * **Unicode Screenshot Path Safety**: Replaced OpenCV `cv2.imwrite()` narrow-character calls with in-memory `cv2.imencode()` + Python's wide-character UTF-16 `Path.write_bytes()`. Verified on paths containing French accents, German umlauts, Cyrillic, and CJK characters.

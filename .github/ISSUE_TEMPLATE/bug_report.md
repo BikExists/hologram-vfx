@@ -20,7 +20,7 @@ A clear and concise description of what you expected to happen.
 ### Environment & System Information
 * **OS**: [e.g. Windows 11 Home 23H2 / Windows 10 Pro 22H2 / macOS 14.5]
 * **Installation Mode**: [e.g. Windows Setup Installer / Portable ZIP / Source (`main.py`)]
-* **Application Version**: [e.g. v0.1.1-dev]
+* **Application Version**: [e.g. v1.0.0]
 * **Camera Model**: [e.g. Integrated Laptop Webcam / Logitech C920 / None (Synthetic)]
 * **CPU / Hardware**: [e.g. Intel Core i7-11800H / AMD Ryzen 5 5600X]
 

@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/BikExists/hologram-vfx/releases/tag/v0.1.1-dev"><img src="https://img.shields.io/badge/Windows%20Standalone-v0.1.1--dev-blue?logo=windows" alt="Windows Standalone v0.1.1-dev"></a>
+  <a href="https://github.com/BikExists/hologram-vfx/releases/tag/v1.0.0"><img src="https://img.shields.io/badge/Windows%20Standalone-v1.0.0-blue?logo=windows" alt="Windows Standalone v1.0.0"></a>
   <a href="https://github.com/BikExists/hologram-vfx"><img src="https://img.shields.io/badge/Tests-197%20Passed-brightgreen" alt="197 Tests Passing"></a>
   <a href="https://github.com/BikExists/hologram-vfx/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-orange" alt="License"></a>
   <a href="docs/SYSTEM_REQUIREMENTS.md"><img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-lightgrey?logo=windows" alt="Platform"></a>
@@ -62,17 +62,17 @@ Explore the full documentation suite for guides, references, and technical detai
 
 ## Downloads (Windows Standalone)
 
-Latest Pre-Release: [**HolographicVFX v0.1.1-dev**](https://github.com/BikExists/hologram-vfx/releases/tag/v0.1.1-dev)
+Latest Release: [**HolographicVFX v1.0.0**](https://github.com/BikExists/hologram-vfx/releases/tag/v1.0.0)
 
 | Package | Best For | Download |
 | :--- | :--- | :--- |
-| **Windows Setup Installer (`.exe`)** | Most Users | [**Download Setup (.exe)**](https://github.com/BikExists/hologram-vfx/releases/download/v0.1.1-dev/HolographicVFX-v0.1.1-dev-Windows-x64-Setup.exe) |
-| **Portable Distribution (`.zip`)** | Zero-Install / USB Drives | [**Download Portable (.zip)**](https://github.com/BikExists/hologram-vfx/releases/download/v0.1.1-dev/HolographicVFX-v0.1.1-dev-Windows-x64.zip) |
+| **Windows Setup Installer (`.exe`)** | Most Users | [**Download Setup (.exe)**](https://github.com/BikExists/hologram-vfx/releases/download/v1.0.0/HolographicVFX-v1.0.0-Windows-x64-Setup.exe) |
+| **Portable Distribution (`.zip`)** | Zero-Install / USB Drives | [**Download Portable (.zip)**](https://github.com/BikExists/hologram-vfx/releases/download/v1.0.0/HolographicVFX-v1.0.0-Windows-x64.zip) |
 
 *Neither package requires Python, Git, or developer dependencies. All models and runtimes are fully self-contained.*
 
 ### Windows SmartScreen Notice
-Because this is an open-source pre-release (`v0.1.1-dev`), binaries are not yet signed with a commercial Authenticode certificate. On first launch, Windows Defender SmartScreen may display:
+Because this is an open-source release (`v1.0.0`), binaries are not yet signed with a commercial Authenticode certificate. On first launch, Windows Defender SmartScreen may display:
 > *"Windows protected your PC — Microsoft Defender SmartScreen prevented an unrecognized app from starting."*
 
 **How to open**: Click **More info**, then click **Run anyway**.  

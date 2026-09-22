@@ -61,7 +61,7 @@ Uninstalling the app will **never** delete your screenshots.
 ## Windows & Installation
 
 ### 10. Why does Windows Defender SmartScreen display a warning on launch?
-Holographic VFX is an open-source development project (`v0.1.1-dev`). Because commercial code-signing certificates cost hundreds of dollars annually, development builds are unsigned. Windows SmartScreen displays a warning on any newly downloaded unsigned executable until it establishes global download reputation.
+Holographic VFX is an open-source project (`v1.0.0`). Because commercial code-signing certificates cost hundreds of dollars annually, binaries are unsigned. Windows SmartScreen displays a warning on any newly downloaded unsigned executable until it establishes global download reputation.
 * To proceed: Click **More info**, then click **Run anyway**.
 
 ### 11. Does the installer require Administrator permissions?

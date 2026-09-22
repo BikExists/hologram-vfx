@@ -235,6 +235,6 @@ To get the smoothest possible experience:
 
 ## 17. Current Limitations
 
-* **Code Signing**: Binaries are currently unsigned development builds (`v0.1.1-dev`), triggering the one-time Windows SmartScreen prompt on initial launch.
+* **Code Signing**: Binaries are currently unsigned (`v1.0.0`), triggering the one-time Windows SmartScreen prompt on initial launch.
 * **Platform**: The standalone installer and portable ZIP are for 64-bit Windows 10 and 11. Native macOS standalone packaging is in development and will be released in a future milestone.
 * **Hardware Dependence**: Real-world capture resolution and frame rates are governed by your webcam's physical hardware capabilities.
