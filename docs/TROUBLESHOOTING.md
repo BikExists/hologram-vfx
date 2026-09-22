@@ -151,7 +151,6 @@ Pressing `[S]` does not produce an image file.
      ```text
      %USERPROFILE%\Pictures\HolographicVFX\
      ```
-     *(Typically: `C:\Users\<YourUsername>\Pictures\HolographicVFX\`)*
 2. **Restricted Windows Permissions**:
    * **Cause**: Highly restricted user permissions on the Pictures directory.
    * **Solution**: Holographic VFX automatically falls back to `%USERPROFILE%\.holographic_vfx\captures\` or the Windows system `%TEMP%\HolographicVFX\captures\` folder if Pictures is inaccessible.

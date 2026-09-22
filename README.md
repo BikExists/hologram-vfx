@@ -112,14 +112,14 @@ Because this is an open-source pre-release (`v0.1.1-dev`), binaries are not yet 
 
 ---
 
-## System Requirements Summary
+## System Requirements Summary (Tested Configurations)
 
-* **OS**: 64-bit Windows 10 or Windows 11.
-* **CPU**: 64-bit x86_64 Dual-Core processor or better.
-* **RAM**: 4 GB minimum (8 GB recommended).
-* **Webcam**: Standard integrated laptop camera or USB webcam (720p 30 FPS or higher).
-* **Disk Space**: ~650 MB free space.
-* **Permissions**: Windows Camera Privacy access enabled.
+* **OS**: 64-bit Windows 10 (22H2) or Windows 11 (23H2).
+* **CPU**: 64-bit x86_64 multi-core processor (Intel Core i5/i7, AMD Ryzen 5/7).
+* **RAM**: 8 GB to 16 GB RAM tested (runtime working set is ~300–450 MB).
+* **Webcam**: Standard integrated laptop camera or USB webcam (720p 30 FPS / 1080p 60 FPS).
+* **Disk Space**: ~650 MB free space (~170 MB download, ~615 MB installed footprint).
+* **Permissions**: Standard user account with Windows Camera Privacy access enabled.
 
 *(For full hardware and platform details, see [SYSTEM_REQUIREMENTS.md](docs/SYSTEM_REQUIREMENTS.md)).*
 
@@ -150,20 +150,21 @@ pytest -v
 
 ---
 
-## Performance & FPS Expectations
+## Performance & FPS Metrics
 
 * **Real-World Webcam Experience**: In normal usage, frame rate is governed by your physical webcam's hardware capabilities (typically **30–60 FPS**). The decoupled tracking worker ensures visual rendering and animations remain fluid without stalling on inference latency.
 * **Synthetic Benchmark Mode**: Running `python main.py --synthetic --headless --benchmark 120` bypasses physical sensor delays to measure internal rendering and tracking throughput. Synthetic benchmark rates can reach **200–300+ FPS**. This figure represents pipeline headroom rather than expected webcam performance.
 
 ---
 
-## Supported Platform Status
+## Platform Status & Boundaries
 
 | Platform | Mode | Status | Notes |
 | :--- | :--- | :--- | :--- |
-| **Windows (x64)** | Standalone (Installer & ZIP) | **Available** | Verified on Windows 10 & 11. Hardened runtime release. |
-| **macOS (Apple Silicon / Intel)** | Source Execution | **Verified from Source** | Tested on physical Mac hardware via `python main.py`. Standalone packaging is paused and will be delivered in a future release. |
-| **Linux (x86_64)** | Source Execution | **Experimental** | Runs from source using standard V4L2 video capture drivers. |
+| **Windows (x64)** | Standalone (Installer & ZIP) | **Hardened Pre-Release** | Hardened standalone build. Installer and portable ZIP available. |
+| **Windows (x64)** | Source Execution | **Supported** | Tested on Windows 10 and 11 with full automated test suite. |
+| **macOS** | Source Execution | **Tested from Source** | Source-level execution has been verified on physical Mac hardware via `python main.py`. Native standalone packaging is deferred. |
+| **Linux (x86_64)** | Source Execution | **Unverified** | Platform code exists, but current standalone and support status is not verified. |
 
 ---
 

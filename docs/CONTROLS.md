@@ -19,7 +19,6 @@ All keyboard shortcuts are active during runtime. Single key presses trigger ins
 | **`[Tab]`** or **`[I]`** | **Cycle Interaction Mode** | Toggles between **Standard 2-Hand Mode** and **Independent Dual-Hand Mode**. |
 | **`[C]`** | **Cycle Color Theme** | Steps through: **Cyber Cyan** $\rightarrow$ **Solar Flare** $\rightarrow$ **Neon Violet** $\rightarrow$ **Emerald Matrix**. |
 | **`[V]`** | **Switch Camera Device** | Hot-switches the active video capture input to the next detected webcam. |
-| **`[7]` .. `[9]`** | **Direct Camera Select** | Directly selects camera index 0, 1, or 2 if multiple devices are attached. |
 | **`[R]`** | **Reset Object Position** | Snaps the active holographic object back to the center of the viewport. |
 | **`[H]`** | **Toggle Skeleton Overlay** | Shows or hides the 21-joint MediaPipe hand landmark skeleton overlay. |
 | **`[S]`** | **Save Screenshot** | Captures a high-resolution PNG image directly to `%USERPROFILE%\Pictures\HolographicVFX\`. |
@@ -40,7 +39,7 @@ Holographic VFX recognizes natural hand postures using 21 3D landmarks per hand.
 | **Closed Fist** | Curl all 4 fingers into your palm with thumb folded | **Shrink Object Scale** | Compresses the object down into a compact, dense core. |
 | **Top-Right Dwell** | Hold an open palm steadily within the top-right `[ MENU ]` corner box | **Charge and Toggle Menu** | Requires **0.6 seconds** of continuous open-palm presence to open or close menu. |
 | **Cursor Tracking** | Point or move index finger across screen while menu is open | **Move Holographic Cursor** | A glowing sci-fi reticle follows your fingertip to highlight menu buttons. |
-| **Secondary Hand Open/Close** | Open or close your secondary hand while the menu is open | **Scroll Menu Items** | Dynamically scrolls through available objects, themes, and settings. |
+| **Secondary Hand Vertical Motion** | Move your secondary hand up or down vertically while the menu is open | **Scroll Menu Items** | Relative vertical displacement smoothly scrolls through available objects, themes, and camera devices. |
 
 ---
 

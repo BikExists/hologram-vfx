@@ -54,7 +54,6 @@ Screenshots are saved directly to your personal Windows Pictures folder:
 ```text
 %USERPROFILE%\Pictures\HolographicVFX\
 ```
-*(Typically: `C:\Users\<YourUsername>\Pictures\HolographicVFX\`)*  
 Uninstalling the app will **never** delete your screenshots.
 
 ---
@@ -85,8 +84,8 @@ Yes. The application automatically detects higher camera resolutions and preserv
 ## Platform Support
 
 ### 14. Does it work on macOS?
-* **From Source**: Yes. The codebase has been verified on physical Mac hardware running directly from source (`python main.py`).
-* **Standalone App (`.app` / `.dmg`)**: Not yet. Native standalone packaging for macOS is intentionally deferred and will be developed and signed in a dedicated future milestone.
+* **From Source**: Source-level testing has been performed on physical Mac hardware running directly from source (`python main.py`).
+* **Standalone App (`.app` / `.dmg`)**: Native macOS standalone packaging is intentionally deferred and will be developed and validated in a future milestone on physical Mac hardware.
 
 ### 15. Does it work on Linux?
-Source execution works on Linux with standard V4L2 webcam drivers and Python 3.10/3.11. Pre-built Linux standalone packages (such as AppImage or deb) are not currently provided.
+Platform code exists, but current standalone and support status is not verified. Pre-built Linux standalone packages are not currently provided.

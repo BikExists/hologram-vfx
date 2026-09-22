@@ -8,18 +8,20 @@ Detailed hardware, operating system, and software specifications for running **H
 
 These specifications apply to the packaged standalone releases (`HolographicVFX-Setup.exe` and `HolographicVFX.zip`). No Python, Git, or command-line tools are required.
 
-### Supported & Verified Specifications
+> **Note on Minimum Requirements**: Formal absolute minimum hardware requirements (such as the slowest supported legacy CPU or minimum RAM threshold below 4 GB) have not been exhaustively benchmarked across older hardware generations. Instead, the specifications below reflect **tested and known working configurations**.
 
-| Component | Minimum Specification | Recommended Specification | Status |
-| :--- | :--- | :--- | :--- |
-| **Operating System** | 64-bit Windows 10 (Version 1909 or later) or Windows 11 | 64-bit Windows 11 (Latest build) | **VERIFIED** |
-| **Processor (CPU)** | 64-bit x86_64 Dual-Core (Intel Core i3 6th Gen / AMD Ryzen 3 or equivalent) | 64-bit x86_64 Quad-Core (Intel Core i5 8th Gen+ / AMD Ryzen 5+) | **VERIFIED** |
-| **Memory (RAM)** | 4 GB RAM | 8 GB RAM or higher | **VERIFIED** |
-| **Graphics (GPU)** | Integrated Graphics supporting DirectX 11 / OpenGL 3.3 (Intel HD 520 / AMD Radeon Vega) | Dedicated GPU (NVIDIA GeForce / AMD Radeon) | **VERIFIED** |
-| **Webcam** | Standard integrated 720p 30 FPS laptop camera or USB webcam | 1080p 30/60 FPS external webcam with good low-light sensor | **VERIFIED** |
-| **Storage** | ~650 MB free disk space (Installer: ~170 MB download, extracted footprint: ~615 MB) | Solid-State Drive (SSD) | **VERIFIED** |
-| **Runtime Libraries** | Microsoft Visual C++ 2015–2022 Redistributable (x64) | Included in standard Windows updates | **VERIFIED** |
-| **Administrative Rights** | None required (Installs per-user into `%LOCALAPPDATA%\Programs\`) | None required | **VERIFIED** |
+### Tested & Known Working Configurations
+
+| Component | Known Working Configuration | Notes |
+| :--- | :--- | :--- |
+| **Operating System** | 64-bit Windows 10 (Version 22H2) or Windows 11 (Version 23H2) | 64-bit OS required. |
+| **Processor (CPU)** | 64-bit x86_64 multi-core processor (Intel Core i5/i7, AMD Ryzen 5/7) | MediaPipe hand tracking utilizes CPU inference on background worker thread. |
+| **Memory (RAM)** | 8 GB to 16 GB RAM (Tested) | Application runtime memory footprint is ~300–450 MB working set. |
+| **Graphics (GPU)** | Integrated Graphics (Intel UHD / Iris Xe / AMD Radeon) or Dedicated GPU | OpenCV presentation uses standard 2D window rendering. |
+| **Webcam** | Standard integrated 720p 30 FPS laptop camera or USB webcam | Tested with standard built-in and external USB 2.0/3.0 cameras. |
+| **Storage** | ~650 MB free disk space | Installer download: ~170 MB; extracted footprint: ~615 MB. |
+| **Runtime Libraries** | Microsoft Visual C++ 2015–2022 Redistributable (x64) | Bundled/standard on updated Windows installations. |
+| **User Privileges** | Standard user permissions | Installs per-user into `%LOCALAPPDATA%\Programs\HolographicVFX`; no admin rights required. |
 
 ---
 
@@ -27,7 +29,7 @@ These specifications apply to the packaged standalone releases (`HolographicVFX-
 
 These specifications apply if you are cloning the repository to contribute or run `main.py` directly.
 
-### Supported & Verified Specifications
+### Verified Development Environment
 
 | Component | Specification | Status |
 | :--- | :--- | :--- |
@@ -36,24 +38,26 @@ These specifications apply if you are cloning the repository to contribute or ru
 | **Package Manager** | `pip` (standard with Python installation) | **VERIFIED** |
 | **Version Control** | Git | **VERIFIED** |
 | **Core Dependencies** | `opencv-python>=4.8.0`, `mediapipe>=0.10.14,<0.11.0`, `numpy>=1.24.0` | **VERIFIED** |
-| **Packaging Tools** | `pyinstaller>=6.0.0`, Inno Setup 6 (optional, required only for building the setup installer) | **VERIFIED** |
+| **Packaging Tools** | `pyinstaller>=6.0.0`, Inno Setup 6 (optional, required only for building installer) | **VERIFIED** |
 
 ---
 
-## 3. Experimental & Non-Windows Platforms
+## 3. Platform Status & Boundaries
 
-| Platform | Mode | Status | Current Reality & Details |
+| Platform | Execution Mode | Current Status | Details |
 | :--- | :--- | :--- | :--- |
-| **macOS (Apple Silicon / Intel)** | Source Execution (`python main.py`) | **EXPERIMENTAL** | Source execution has been verified on a secondary physical Mac machine running `main.py`. Video capture requires granting Terminal/IDE camera permissions in macOS Security & Privacy. |
-| **macOS Standalone (`.app` / `.dmg`)** | Native Packaged App | **NOT AVAILABLE YET** | Standalone packaging for macOS is intentionally deferred and will be implemented in a dedicated milestone once validated on physical Mac hardware. |
-| **Linux (x86_64)** | Source Execution (`python main.py`) | **NOT FULLY VERIFIED** | Linux source execution depends on standard V4L2 webcam drivers and X11/Wayland OpenCV backends. Standalone packaging is not yet provided. |
+| **Windows x64** | Standalone Installer & Portable ZIP | **Hardened Pre-Release** | Hardened standalone build. Installer and portable ZIP available. |
+| **Windows x64** | Source Execution (`python main.py`) | **Supported** | Verified with automated test suite and manual testing. |
+| **macOS** | Source Execution (`python main.py`) | **Tested from Source** | Source-level execution has been verified on physical Mac hardware. Video capture requires Terminal/IDE camera permissions. |
+| **macOS** | Standalone App (`.app` / `.dmg`) | **Deferred** | Native standalone packaging is intentionally deferred until validated on physical Mac hardware. |
+| **Linux (x86_64)** | Source Execution (`python main.py`) | **Unverified** | Platform code exists, but current standalone and support status is not verified. |
 
 ---
 
-## 4. Hardware Verification Distinctions
+## 4. Hardware & Technical Clarifications
 
 To maintain absolute technical transparency:
 
-* **Instruction Sets**: The application uses pre-built wheels for NumPy, OpenCV, and MediaPipe. While modern CPUs include AVX2 instructions, AVX2 is not explicitly enforced as a strict launch barrier.
-* **Network Connectivity**: **0 internet connection required**. The application does not require online verification, telemetry, cloud inference, or licensing servers. It functions completely offline.
+* **Instruction Sets**: The application uses standard pre-built wheels for NumPy, OpenCV, and MediaPipe. No hard requirement for AVX2 instructions is explicitly enforced by the application runtime.
+* **Network Connectivity**: **Zero network calls**. The application contains no networking code, telemetry, cloud inference, or licensing checks. It operates completely offline.
 * **Camera Refresh Rates**: Real-world visual fluidity depends on your webcam hardware. A camera running in a dark room that underexposes will drop to 15 FPS at the hardware level. Adequate room illumination is strongly recommended for 30–60 FPS tracking.

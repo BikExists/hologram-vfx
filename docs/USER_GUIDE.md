@@ -173,9 +173,8 @@ While the menu is open, the holographic object is temporarily locked in position
 
 1. **Move the Hand Cursor**: Move your primary hand across the screen. A glowing holographic cursor tracks your index finger tip.
 2. **Clicking Buttons**: Hover the cursor over an item (such as an object name, theme, or camera) and perform a quick **pinch** gesture with your thumb and index finger.
-3. **Scrolling Items**: If your menu contains more items than fit on screen:
-   * **With Two Hands**: Open or close your secondary hand to scroll the list up or down.
-   * **With Mouse / Trackpad**: Scroll using your mouse wheel over the menu area.
+3. **Scrolling Items**: If the menu contains more items than fit on screen:
+   * **Secondary Hand Vertical Movement**: Raise or lower your secondary hand vertically to scroll the menu list smoothly up or down.
 
 ---
 
@@ -190,7 +189,6 @@ Capture high-resolution images of your interactions at any moment:
    ```text
    %USERPROFILE%\Pictures\HolographicVFX\
    ```
-   *(For example: `C:\Users\YourUsername\Pictures\HolographicVFX\`)*
 4. **Collision Safe**: If you take multiple screenshots rapidly within the same second, the application appends an incrementing counter (`_1`, `_2`, etc.) so no screenshot is ever overwritten.
 5. **Uninstall Safe**: Screenshots are stored separately from the program files. Uninstalling the app will never delete your saved pictures.
 

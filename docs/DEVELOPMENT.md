@@ -71,8 +71,8 @@ The core loop in `HolographicVFXApp.run()` operates through well-defined sequent
    * `AsyncHandTracker.get_latest_result()` retrieves the most recently completed hand landmarks without blocking. If landmarks exceed `max_stale_ms=200.0`, they are decayed to avoid frozen ghost hands.
 4. **Interaction Stage**:
    * Hand landmarks are mapped into viewport coordinates.
-   * `GestureRecognizer` calculates pinch distance and openness metrics.
-   * If both hands are present, `TwoHandInteraction` computes spatial distance, rotation angle, and midpoint.
+   * `GestureEstimator` calculates pinch distance and openness metrics with hysteresis.
+   * If both hands are present, `compute_two_hand_distance`, `compute_two_hand_angle`, and `compute_two_hand_midpoint` derive two-hand spatial transforms in `OrbController`.
    * `UIManager` updates the dwell timer in the top-right trigger zone. If the menu is open, object transforms are locked and hand inputs are routed to UI button cursors.
 5. **Rendering & Compositing Stage**:
    * The active object (Orb, Cube, Planet, Orchid, Bhondu, or Jellyfish) draws its geometry, scanlines, and beacons.
@@ -81,7 +81,7 @@ The core loop in `HolographicVFXApp.run()` operates through well-defined sequent
    * `HUD` composites telemetry text, theme badges, and skeleton joint lines.
 6. **Presentation Stage**:
    * The composite frame is passed to `cv2.imshow()`.
-   * `cv2.waitKey(1)` polls for keyboard events (`Q`, `ESC`, `1`..`6`, `C`, `V`, `S`, `M`, `Tab`).
+   * `cv2.waitKey(1)` polls for keyboard events (`Q`, `ESC`, `1`..`6`, `C`, `V`, `S`, `M`, `Tab`, `I`, `R`, `H`).
 7. **Clean Shutdown Stage**:
    * `app.close()` releases camera handles, signals the tracking worker thread to shut down, joins the thread within a 1.0s timeout, and destroys OpenCV display windows.
 
@@ -103,9 +103,10 @@ The core loop in `HolographicVFXApp.run()` operates through well-defined sequent
   * **Staleness Protection**: Flags landmarks older than 200 ms as stale.
 
 ### 3.3. Interaction & Gesture Engine (`src/gestures.py` & `src/interaction.py`)
-* **Pinch Detection**: Normalized Euclidean distance between landmark 4 (`THUMB_TIP`) and landmark 8 (`INDEX_FINGER_TIP`). Grab threshold: `0.38`; Release threshold: `0.52` (hysteresis prevents jitter).
-* **Hand Openness**: Normalized perimeter and finger-spread calculation mapping from `0.0` (fist) to `1.0` (wide palm).
-* **Dual-Hand Modes**:
+* **`GestureEstimator`**:
+  * **Pinch Detection**: Normalized Euclidean distance between landmark 4 (`THUMB_TIP`) and landmark 8 (`INDEX_FINGER_TIP`). Grab threshold: `0.38`; Release threshold: `0.52` (hysteresis prevents jitter).
+  * **Hand Openness**: Normalized perimeter and finger-spread calculation mapping from `0.0` (fist) to `1.0` (wide palm).
+* **`OrbController`**:
   * **Standard Mode**: Midpoint anchor position, inter-hand distance scaling, and tilt-angle rotation.
   * **Independent Mode**: Primary hand moves; secondary hand controls scale and background UI parameters.
 

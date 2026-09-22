@@ -6,17 +6,21 @@ The project follows semantic versioning principles with development pre-releases
 
 ---
 
-## [v0.1.1-dev] - 2026-09-22
+## [Unreleased] (main branch)
 
-### Phase B: Windows Standalone Release Hardening
+### Phase B: Windows Standalone Release Hardening (`988db8f`)
 * **Unicode Screenshot Path Safety**: Replaced OpenCV `cv2.imwrite()` narrow-character calls with in-memory `cv2.imencode()` + Python's wide-character UTF-16 `Path.write_bytes()`. Verified on paths containing French accents, German umlauts, Cyrillic, and CJK characters.
 * **Screenshot Collision Avoidance**: Implemented automatic incrementing counter suffixes (`_1`, `_2`, ...) in `generate_screenshot_path()` to prevent overwriting rapid captures taken within the same second.
 * **Windowed Crash Interception & Native Dialog**: Added `_handle_fatal_exception()` in `main.py`. Writes diagnostic crash reports to `%USERPROFILE%\Pictures\HolographicVFX\crash_log.txt` (with `%TEMP%` fallback) and displays native Win32 `MessageBoxW` error dialogs in windowed mode while cleanly suppressing them in headless mode.
 * **Tracking Worker Resilience**: Guarded MediaPipe CPU inference in `_worker_loop()` with exception containment. Transient inference glitches no longer kill the background worker thread; tracking self-heals immediately on the next frame with a 2.0s error logging cooldown.
 * **Dependency Footprint Optimization**: Excluded `tkinter` from PyInstaller packaging in `HolographicVFX.spec`.
-* **Automated Regression Suite**: Expanded test coverage from 191 to 197 unit tests passing cleanly.
+* **Automated Regression Suite**: Expanded test coverage to 197 unit tests passing cleanly.
 
-### Mission 14.1: Windows Standalone UX Hardening
+---
+
+## [v0.1.1-dev] - 2026-09-22
+
+### Mission 14.1: Windows Standalone UX Hardening (`8271a87`)
 * **Welcome Screen Dismissal**: Enhanced welcome tutorial overlay to dismiss either by presenting a hand to the camera or by pressing `[Space]` / `[Enter]`.
 * **Window Close Debounce**: Implemented debounce logic for window property queries to prevent spurious shutdowns during rapid mouse movement over the window frame.
 * **Per-User Installer**: Configured Inno Setup installer with `PrivilegesRequired=lowest` for seamless non-elevated installation into `%LOCALAPPDATA%\Programs\HolographicVFX`.
@@ -58,7 +62,7 @@ The project follows semantic versioning principles with development pre-releases
 
 #### Mission 9: Tracking & Rendering Performance Optimizations (`1fd5460`, `735e28a`)
 * Subsampled tracking resolution to 640x480 while preserving native display presentation.
-* Implemented `AuraCache` with quantized integer prebaking for radial glow shaders.
+* Implemented `AuraCache` with quantized integer prebaking for procedural radial glow gradient caching.
 
 #### Mission 6–7: Multi-Hand Interaction (`55aeef1`, `8ae0890`)
 * Added two-hand spatial transforms: midpoint anchoring, distance-based scaling, and tilt-angle rotation.
