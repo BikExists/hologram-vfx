@@ -2,6 +2,8 @@
 
 This document lists the third-party software libraries, tools, and pre-trained machine learning models incorporated into, bundled with, or utilized by **Holographic VFX**, along with their respective open-source license terms and attributions.
 
+Holographic VFX itself is licensed under the [Apache License, Version 2.0](LICENSE). Copyright 2026 BikExists.
+
 Holographic VFX is grateful to the authors and maintainers of these open-source projects.
 
 ---
@@ -76,7 +78,7 @@ The standalone package bundles pre-trained binary machine learning models extrac
 ## 6. Common Third-Party License Texts & Notices
 
 ### Apache License, Version 2.0
-*(Applies to OpenCV, MediaPipe, FlatBuffers, Abseil Python, and MediaPipe model assets)*
+*(Applies to Holographic VFX, OpenCV, MediaPipe, FlatBuffers, Abseil Python, and MediaPipe model assets)*
 
 ```text
 Licensed under the Apache License, Version 2.0 (the "License");

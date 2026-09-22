@@ -95,4 +95,4 @@ Platform code exists, but current standalone and support status is not verified.
 ## Licensing & Legal
 
 ### 16. What is the license for Holographic VFX?
-The repository currently contains no explicit project license file committed. Formal adoption of a project license is an administrative decision reserved for the repository maintainer (`BikExists`). All third-party libraries (OpenCV, Google MediaPipe, NumPy, etc.) are utilized under their respective open-source licenses. For complete details, see [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md) and [TERMS.md](TERMS.md).
+Holographic VFX is licensed under the [Apache License, Version 2.0](../LICENSE). Copyright 2026 BikExists. Third-party dependencies and pre-trained models (OpenCV, Google MediaPipe, NumPy, etc.) are utilized under their respective upstream open-source licenses. For complete details, see [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md) and [TERMS.md](TERMS.md).

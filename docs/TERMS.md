@@ -42,11 +42,11 @@ Holographic VFX incorporates and links against multiple open-source libraries an
 
 ---
 
-## 6. Project License Status & Maintainer Authority
+## 6. Project License & Governing Terms
 
-* **No Explicit Project License Yet**: As of the current repository state, an explicit project-wide open-source license (such as MIT or Apache 2.0) has not yet been formally committed.
-* **Human Decision Required**: Formal selection and adoption of a project license is an administrative decision reserved for the repository owner and maintainer (`BikExists`).
-* **Third-Party Rights**: Nothing in this document or the project modifies, overrides, or limits the open-source rights granted by third-party upstream components under their respective licenses.
+* **Apache License 2.0**: Holographic VFX is licensed under the [Apache License, Version 2.0](../LICENSE). Copyright 2026 BikExists.
+* **Redistribution & Modifications**: Use, reproduction, and distribution of Holographic VFX source and binary forms are permitted in accordance with the terms and conditions of the Apache License 2.0.
+* **Third-Party Rights**: Nothing in this document modifies, overrides, or limits the open-source rights granted by third-party upstream components under their respective licenses (see [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md)).
 
 ---
 

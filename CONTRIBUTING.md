@@ -88,9 +88,10 @@ pytest -q
    * Never write user files or screenshots directly to the repository or current working directory.
    * Always route user outputs through `src/paths.py` (`get_user_capture_dir()`).
    * When writing files on Windows, use Unicode-safe byte writing (`Path.write_bytes()`) rather than narrow C runtime calls.
-4. **Third-Party Licenses & Project Status**:
-   * New dependencies must be compatible with existing third-party licenses (see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)).
-   * The repository currently has no explicit project license committed; formal license adoption is reserved for the maintainer.
+4. **Licensing & Third-Party Compatibility**:
+   * Holographic VFX is licensed under the [Apache License, Version 2.0](LICENSE).
+   * By contributing to Holographic VFX, you agree that your contributions will be licensed under the Apache License 2.0 (in accordance with Section 5 of the license).
+   * Any new third-party dependencies must have compatible open-source licenses (see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)).
 5. **Platform Boundaries**:
    * Windows standalone packaging is the current hardened release target.
    * macOS standalone packaging is currently paused pending physical Apple Silicon validation; do not commit speculative macOS packaging scripts.

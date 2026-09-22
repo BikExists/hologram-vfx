@@ -32,6 +32,7 @@ Explore the full documentation suite for guides, references, and technical detai
 | 🔒 [**Privacy & Data Notice**](docs/PRIVACY.md) | Factual details on local frame processing, zero telemetry, and user screenshots. |
 | 📄 [**Third-Party Notices**](THIRD-PARTY-NOTICES.md) | Open-source licenses, notices, and pre-trained model disclosures. |
 | ⚖️ [**Terms & Disclaimer**](docs/TERMS.md) | Pre-release software terms, "as-is" disclaimer, and maintainer licensing authority. |
+| 📜 [**License (Apache 2.0)**](LICENSE) | Official Apache License, Version 2.0 terms governing this project. |
 
 ---
 
@@ -182,6 +183,6 @@ pytest -v
 ## Project Status, Licensing & Credits
 
 * **Author & Maintainer**: Created and maintained by **BikExists**.
+* **Project License**: Holographic VFX is licensed under the [Apache License, Version 2.0](LICENSE). Copyright 2026 BikExists.
 * **Third-Party Open Source**: Built with [Google MediaPipe](https://github.com/google/mediapipe) (Apache 2.0), [OpenCV](https://opencv.org/) (Apache 2.0), and [NumPy](https://numpy.org/) (BSD 3-Clause). For a complete list of third-party dependencies, model disclosures, and license notices, see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
-* **Project License Status**: The repository currently contains no explicit project license file committed. Formal license adoption is an administrative decision reserved for the repository owner (`BikExists`). All third-party components remain subject to their respective open-source licenses.
 * **Privacy & Terms**: See [docs/PRIVACY.md](docs/PRIVACY.md) and [docs/TERMS.md](docs/TERMS.md).
