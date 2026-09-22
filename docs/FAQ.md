@@ -20,15 +20,15 @@ Yes. If no physical webcam is detected, the application automatically falls back
 ## Privacy & Security
 
 ### 4. Does Holographic VFX upload my webcam video to the cloud?
-**Never.** 100% of video frame processing and machine learning inference occurs locally on your computer's CPU in volatile system RAM (NumPy arrays). No video frames, images, or biometric hand data are ever transmitted to any external server or network endpoint.
+No. All video frame processing and machine learning inference occurs locally on your computer's CPU in volatile system RAM (NumPy arrays). Based on the codebase, no video frames, images, or biometric hand data are ever transmitted to any external server or network endpoint. *(See [PRIVACY.md](PRIVACY.md) for full details).*
 
 ### 5. Does the application require an internet connection?
-No. Holographic VFX is a 100% local-first application. It requires zero network access, contains zero analytics or telemetry, and does not "phone home." It runs completely disconnected from the internet.
+No. Holographic VFX is designed as a local-first application. It requires zero network access, contains no analytics or telemetry code, and operates completely disconnected from the internet. *(See [PRIVACY.md](PRIVACY.md)).*
 
 ### 6. When does it save files to my hard drive?
 The application writes to your disk in only two situations:
 1. When you explicitly press `[S]` to take a screenshot.
-2. If a fatal crash occurs, it writes a diagnostic `crash_log.txt` to help you identify the failure.
+2. If an unhandled fatal crash occurs, it writes a diagnostic `crash_log.txt` to help identify the failure.
 
 ---
 
@@ -89,3 +89,10 @@ Yes. The application automatically detects higher camera resolutions and preserv
 
 ### 15. Does it work on Linux?
 Platform code exists, but current standalone and support status is not verified. Pre-built Linux standalone packages are not currently provided.
+
+---
+
+## Licensing & Legal
+
+### 16. What is the license for Holographic VFX?
+The repository currently contains no explicit project license file committed. Formal adoption of a project license is an administrative decision reserved for the repository maintainer (`BikExists`). All third-party libraries (OpenCV, Google MediaPipe, NumPy, etc.) are utilized under their respective open-source licenses. For complete details, see [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md) and [TERMS.md](TERMS.md).

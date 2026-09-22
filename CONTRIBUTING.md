@@ -81,14 +81,17 @@ pytest -q
    * Never introduce blocking or synchronous operations (such as disk I/O, network requests, or long sleep loops) into the visual rendering loop in `src/app.py`.
    * CPU-intensive inference must be delegated to the background worker (`src/tracking_worker.py`).
 2. **Local-First & Privacy Standards**:
-   * Holographic VFX is strictly 100% local-first.
+   * Holographic VFX is designed as a local-first application.
    * **Do not add network calls, telemetry, cloud services, or external analytics.**
-   * Camera frames must only reside in volatile memory (NumPy arrays).
+   * Camera frames must only reside in volatile memory (NumPy arrays). See [docs/PRIVACY.md](docs/PRIVACY.md).
 3. **Filesystem Safety**:
    * Never write user files or screenshots directly to the repository or current working directory.
    * Always route user outputs through `src/paths.py` (`get_user_capture_dir()`).
    * When writing files on Windows, use Unicode-safe byte writing (`Path.write_bytes()`) rather than narrow C runtime calls.
-4. **Platform Boundaries**:
+4. **Third-Party Licenses & Project Status**:
+   * New dependencies must be compatible with existing third-party licenses (see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)).
+   * The repository currently has no explicit project license committed; formal license adoption is reserved for the maintainer.
+5. **Platform Boundaries**:
    * Windows standalone packaging is the current hardened release target.
    * macOS standalone packaging is currently paused pending physical Apple Silicon validation; do not commit speculative macOS packaging scripts.
 

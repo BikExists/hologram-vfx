@@ -29,6 +29,9 @@ Explore the full documentation suite for guides, references, and technical detai
 | 🏗️ [**Architecture & Development**](docs/DEVELOPMENT.md) | Technical guide covering the pipeline lifecycle, decoupled tracking, and build steps. |
 | 🤝 [**Contributing Guidelines**](CONTRIBUTING.md) | Workflow for setting up your environment, running 197 tests, and pull requests. |
 | 📜 [**Changelog**](CHANGELOG.md) | Historical milestones from initial prototype to Phase B runtime hardening. |
+| 🔒 [**Privacy & Data Notice**](docs/PRIVACY.md) | Factual details on local frame processing, zero telemetry, and user screenshots. |
+| 📄 [**Third-Party Notices**](THIRD-PARTY-NOTICES.md) | Open-source licenses, notices, and pre-trained model disclosures. |
+| ⚖️ [**Terms & Disclaimer**](docs/TERMS.md) | Pre-release software terms, "as-is" disclaimer, and maintainer licensing authority. |
 
 ---
 
@@ -52,7 +55,7 @@ Explore the full documentation suite for guides, references, and technical detai
 * **Touchless Holographic Menu**: Hover an open palm over the top-right `[ MENU ]` trigger zone for 0.6s to summon a floating sci-fi glass menu; navigate with a fingertip cursor.
 * **4 Sci-Fi Color Themes**: Cyber Cyan, Solar Flare, Neon Violet, and Emerald Matrix.
 * **Unicode-Safe Snapshots**: Press `[S]` to save high-resolution PNG screenshots directly to `%USERPROFILE%\Pictures\HolographicVFX\`.
-* **100% Local-First & Private**: **Zero network requests, zero telemetry, zero cloud calls.** Camera frames are processed strictly in volatile system RAM.
+* **Local-First & Offline**: **Zero network requests, zero telemetry, zero cloud calls.** Camera frames are processed strictly in local volatile system RAM (see [docs/PRIVACY.md](docs/PRIVACY.md)).
 
 ---
 
@@ -176,6 +179,9 @@ pytest -v
 
 ---
 
-## Project Status & Credits
+## Project Status, Licensing & Credits
 
-Holographic VFX is an open-source development project created by **BikExists**. Built with [Google MediaPipe](https://github.com/google/mediapipe), [OpenCV](https://opencv.org/), and [NumPy](https://numpy.org/).
+* **Author & Maintainer**: Created and maintained by **BikExists**.
+* **Third-Party Open Source**: Built with [Google MediaPipe](https://github.com/google/mediapipe) (Apache 2.0), [OpenCV](https://opencv.org/) (Apache 2.0), and [NumPy](https://numpy.org/) (BSD 3-Clause). For a complete list of third-party dependencies, model disclosures, and license notices, see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+* **Project License Status**: The repository currently contains no explicit project license file committed. Formal license adoption is an administrative decision reserved for the repository owner (`BikExists`). All third-party components remain subject to their respective open-source licenses.
+* **Privacy & Terms**: See [docs/PRIVACY.md](docs/PRIVACY.md) and [docs/TERMS.md](docs/TERMS.md).
