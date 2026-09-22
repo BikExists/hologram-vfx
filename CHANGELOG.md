@@ -4,6 +4,15 @@ All notable changes and architectural milestones for **Holographic VFX** are doc
 
 The project follows semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.0.1] - 2026-09-22
+
+### Windows Multi-Camera Enumeration Hotfix
+* **DirectShow COM Moniker Enumeration**: Added native COM device enumeration via standard library `ctypes` (`CLSID_VideoInputDeviceCategory` / `ICreateDevEnum`), matching OpenCV's exact DirectShow index mapping and device ordering.
+* **Full PnP Hardware Querying**: Expanded device inspection to query both `KSCATEGORY_CAPTURE` (where USB UVC webcams register) and `KSCATEGORY_VIDEO_CAMERA`, eliminating omitted external webcams.
+* **Decoupled Probe Bounds**: Removed index capping logic that prevented probing indices `>= len(detected_meta)`, allowing all physical indices (0 to `max_devices-1`) to be probed and opened regardless of metadata count or ordering.
+* **Preserved Virtual Separation**: Maintained separation between physical cameras and virtual software devices (OBS, Phone Link, NVIDIA Broadcast), ensuring only native physical cameras appear in default selection while virtual devices remain discoverable via `--include-virtual`.
+* **Automated Regression Suite**: Added regression tests in `test_camera_selector.py` validating multi-camera discovery, non-zero physical indices, and DirectShow COM structure (201 passing tests).
+
 ---
 
 ## [1.0.0] - 2026-09-22

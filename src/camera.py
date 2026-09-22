@@ -80,66 +80,257 @@ VIRTUAL_CAMERA_KEYWORDS = (
 )
 
 
+def enumerate_windows_dshow_devices() -> List[Dict[str, Any]]:
+    """Enumerates Windows DirectShow video input devices using COM via ctypes.
+
+    Directly queries DirectShow's ICreateDevEnum on CLSID_VideoInputDeviceCategory,
+    matching the exact device order, Monikers, and indices used by OpenCV's CAP_DSHOW.
+    Returns list of dicts: [{'device_id': int, 'name': str, 'bus_id': str, 'is_physical': bool}]
+    """
+    if not sys.platform.startswith("win"):
+        return []
+
+    devices: List[Dict[str, Any]] = []
+    try:
+        import ctypes
+        from ctypes import wintypes
+        import uuid
+
+        ole32 = ctypes.oledll.ole32
+        oleaut32 = ctypes.oledll.oleaut32
+        ole32.CoInitialize(None)
+
+        HRESULT = ctypes.c_long
+
+        class GUID(ctypes.Structure):
+            _fields_ = [
+                ("Data1", wintypes.DWORD),
+                ("Data2", wintypes.WORD),
+                ("Data3", wintypes.WORD),
+                ("Data4", wintypes.BYTE * 8),
+            ]
+
+            def __init__(self, s: str):
+                super().__init__()
+                u = uuid.UUID(s)
+                self.Data1 = u.time_low
+                self.Data2 = u.time_mid
+                self.Data3 = u.time_hi_version
+                self.Data4 = (wintypes.BYTE * 8)(*u.bytes[8:])
+
+        CLSID_SystemDeviceEnum = GUID("{62BE5D10-60EB-11d0-BD3B-00A0C911CE86}")
+        IID_ICreateDevEnum = GUID("{29840822-5B84-11D0-BD3B-00A0C911CE86}")
+        CLSID_VideoInputDeviceCategory = GUID("{860BB310-5D01-11d0-BD3B-00A0C911CE86}")
+        IID_IPropertyBag = GUID("{55272A00-42CB-11CE-8135-00AA004BB851}")
+
+        class VARIANT(ctypes.Structure):
+            class _U(ctypes.Union):
+                _fields_ = [
+                    ("bstrVal", wintypes.LPWSTR),
+                    ("punkVal", ctypes.c_void_p),
+                    ("lVal", wintypes.LONG),
+                ]
+
+            _anonymous_ = ("_u",)
+            _fields_ = [
+                ("vt", ctypes.c_ushort),
+                ("wReserved1", wintypes.WORD),
+                ("wReserved2", wintypes.WORD),
+                ("wReserved3", wintypes.WORD),
+                ("_u", _U),
+            ]
+
+        VT_BSTR = 8
+
+        p_dev_enum = ctypes.c_void_p()
+        hr = ole32.CoCreateInstance(
+            ctypes.byref(CLSID_SystemDeviceEnum),
+            None,
+            1,  # CLSCTX_INPROC_SERVER
+            ctypes.byref(IID_ICreateDevEnum),
+            ctypes.byref(p_dev_enum),
+        )
+        if hr != 0 or not p_dev_enum:
+            return []
+
+        vtable = ctypes.cast(p_dev_enum, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+        CreateClassEnumerator = ctypes.WINFUNCTYPE(
+            HRESULT,
+            ctypes.c_void_p,
+            ctypes.POINTER(GUID),
+            ctypes.POINTER(ctypes.c_void_p),
+            wintypes.DWORD,
+        )(vtable[3])
+
+        p_enum = ctypes.c_void_p()
+        hr = CreateClassEnumerator(
+            p_dev_enum, ctypes.byref(CLSID_VideoInputDeviceCategory), ctypes.byref(p_enum), 0
+        )
+        if hr != 0 or not p_enum:
+            ctypes.WINFUNCTYPE(wintypes.ULONG, ctypes.c_void_p)(vtable[2])(p_dev_enum)
+            return []
+
+        vtable_enum = ctypes.cast(p_enum, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+        Next = ctypes.WINFUNCTYPE(
+            HRESULT,
+            ctypes.c_void_p,
+            wintypes.ULONG,
+            ctypes.POINTER(ctypes.c_void_p),
+            ctypes.POINTER(wintypes.ULONG),
+        )(vtable_enum[3])
+
+        idx = 0
+        while True:
+            p_mon = ctypes.c_void_p()
+            f = wintypes.ULONG()
+            if Next(p_enum, 1, ctypes.byref(p_mon), ctypes.byref(f)) != 0 or f.value == 0:
+                break
+
+            vtable_mon = ctypes.cast(p_mon, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+            BindToStorage = ctypes.WINFUNCTYPE(
+                HRESULT,
+                ctypes.c_void_p,
+                ctypes.c_void_p,
+                ctypes.c_void_p,
+                ctypes.POINTER(GUID),
+                ctypes.POINTER(ctypes.c_void_p),
+            )(vtable_mon[9])
+
+            p_bag = ctypes.c_void_p()
+            name = f"Camera {idx}"
+            path = ""
+            if BindToStorage(p_mon, None, None, ctypes.byref(IID_IPropertyBag), ctypes.byref(p_bag)) == 0 and p_bag:
+                vtable_bag = ctypes.cast(p_bag, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+                Read = ctypes.WINFUNCTYPE(
+                    HRESULT,
+                    ctypes.c_void_p,
+                    wintypes.LPCWSTR,
+                    ctypes.POINTER(VARIANT),
+                    ctypes.c_void_p,
+                )(vtable_bag[3])
+
+                v = VARIANT()
+                oleaut32.VariantInit(ctypes.byref(v))
+                if Read(p_bag, "FriendlyName", ctypes.byref(v), None) == 0 and v.vt == VT_BSTR and v.bstrVal:
+                    name = str(v.bstrVal)
+                oleaut32.VariantClear(ctypes.byref(v))
+
+                vp = VARIANT()
+                oleaut32.VariantInit(ctypes.byref(vp))
+                if Read(p_bag, "DevicePath", ctypes.byref(vp), None) == 0 and vp.vt == VT_BSTR and vp.bstrVal:
+                    path = str(vp.bstrVal)
+                oleaut32.VariantClear(ctypes.byref(vp))
+
+                ctypes.WINFUNCTYPE(wintypes.ULONG, ctypes.c_void_p)(vtable_bag[2])(p_bag)
+
+            ctypes.WINFUNCTYPE(wintypes.ULONG, ctypes.c_void_p)(vtable_mon[2])(p_mon)
+
+            path_lower = path.lower()
+            name_lower = name.lower()
+
+            is_virtual = any(kw in name_lower for kw in VIRTUAL_CAMERA_KEYWORDS)
+            if path_lower.startswith(r"\\?\swd") or path_lower.startswith(r"\\?\root"):
+                is_virtual = True
+
+            is_phys = (not is_virtual) and (
+                not path
+                or path_lower.startswith(r"\\?\usb")
+                or path_lower.startswith(r"\\?\pci")
+                or path_lower.startswith(r"\\?\acpi")
+            )
+
+            devices.append({
+                "device_id": idx,
+                "name": name,
+                "bus_id": path or f"DirectShow_{idx}",
+                "is_physical": is_phys,
+            })
+            idx += 1
+
+        ctypes.WINFUNCTYPE(wintypes.ULONG, ctypes.c_void_p)(vtable_enum[2])(p_enum)
+        ctypes.WINFUNCTYPE(wintypes.ULONG, ctypes.c_void_p)(vtable[2])(p_dev_enum)
+    except Exception:
+        return []
+
+    return devices
+
+
 def inspect_windows_camera_devices() -> List[Dict[str, Any]]:
-    """Inspects Windows PnP and DirectShow registry to classify physical vs virtual cameras."""
+    """Inspects Windows cameras via DirectShow COM with PnP registry fallback."""
+    # 1. Primary: DirectShow COM enumerator matching OpenCV CAP_DSHOW
+    dshow_devs = enumerate_windows_dshow_devices()
+    if dshow_devs:
+        return dshow_devs
+
+    # 2. Fallback: Registry inspection of KSCATEGORY_CAPTURE, KSCATEGORY_VIDEO_CAMERA, and DirectShow filters
     results: List[Dict[str, Any]] = []
     try:
         import winreg
     except ImportError:
         return results
 
-    # 1. PnP Video Cameras from DeviceClasses (KSCATEGORY_VIDEO_CAMERA)
-    guid_video = r"SYSTEM\CurrentControlSet\Control\DeviceClasses\{e5323777-f976-4f5b-9b55-b94699c46e44}"
-    try:
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, guid_video) as k:
-            n_sub, _, _ = winreg.QueryInfoKey(k)
-            for i in range(n_sub):
-                sub_name = winreg.EnumKey(k, i)
-                if not sub_name.startswith("##?#"):
-                    continue
+    guids = [
+        r"SYSTEM\CurrentControlSet\Control\DeviceClasses\{65e8773d-8f56-11d0-a3b9-00a0c9223196}",  # KSCATEGORY_CAPTURE
+        r"SYSTEM\CurrentControlSet\Control\DeviceClasses\{e5323777-f976-4f5b-9b55-b94699c46e44}",  # KSCATEGORY_VIDEO_CAMERA
+    ]
+    seen_ids = set()
+    idx = 0
+    for guid in guids:
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, guid) as k:
+                n_sub, _, _ = winreg.QueryInfoKey(k)
+                for i in range(n_sub):
+                    sub_name = winreg.EnumKey(k, i)
+                    if not sub_name.startswith("##?#"):
+                        continue
 
-                raw_id = sub_name[4:].split("#{")[0].replace("#", "\\")
-                raw_upper = raw_id.upper()
-                is_software_bus = (
-                    raw_upper.startswith("SWD")
-                    or raw_upper.startswith("ROOT")
-                    or "VCAM" in raw_upper
-                )
+                    raw_id = sub_name[4:].split("#{")[0].replace("#", "\\")
+                    if raw_id in seen_ids:
+                        continue
+                    seen_ids.add(raw_id)
+                    raw_upper = raw_id.upper()
+                    is_software_bus = (
+                        raw_upper.startswith("SWD")
+                        or raw_upper.startswith("ROOT")
+                        or "VCAM" in raw_upper
+                    )
 
-                name = ""
-                enum_path = f"SYSTEM\\CurrentControlSet\\Enum\\{raw_id}"
-                try:
-                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, enum_path) as ek:
-                        num_v, _, _ = winreg.QueryInfoKey(ek)
-                        for v in range(num_v):
-                            vn, vv, _ = winreg.EnumValue(ek, v)
-                            if vn == "FriendlyName":
-                                name = vv
-                                break
-                            elif vn == "DeviceDesc" and not name:
-                                name = vv.split(";")[-1] if ";" in vv else vv
-                except Exception:
-                    pass
+                    name = ""
+                    enum_path = f"SYSTEM\\CurrentControlSet\\Enum\\{raw_id}"
+                    try:
+                        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, enum_path) as ek:
+                            num_v, _, _ = winreg.QueryInfoKey(ek)
+                            for v in range(num_v):
+                                vn, vv, _ = winreg.EnumValue(ek, v)
+                                if vn == "FriendlyName":
+                                    name = vv
+                                    break
+                                elif vn == "DeviceDesc" and not name:
+                                    name = vv.split(";")[-1] if ";" in vv else vv
+                    except Exception:
+                        pass
 
-                if not name or name == "Generic software device":
-                    if "VCAMDEVAPI" in raw_upper:
-                        name = "Phone Link / Connected Camera"
-                    elif not name:
-                        name = "Camera" if not is_software_bus else "Virtual Camera"
+                    if not name or name == "Generic software device":
+                        if "VCAMDEVAPI" in raw_upper:
+                            name = "Phone Link / Connected Camera"
+                        elif not name:
+                            name = "Camera" if not is_software_bus else "Virtual Camera"
 
-                name_lower = name.lower()
-                is_virtual_by_name = any(kw in name_lower for kw in VIRTUAL_CAMERA_KEYWORDS)
-                is_physical = (not is_software_bus) and (not is_virtual_by_name)
+                    name_lower = name.lower()
+                    is_virtual_by_name = any(kw in name_lower for kw in VIRTUAL_CAMERA_KEYWORDS)
+                    is_physical = (not is_software_bus) and (not is_virtual_by_name)
 
-                results.append({
-                    "name": name,
-                    "bus_id": raw_id,
-                    "is_physical": is_physical,
-                })
-    except Exception:
-        pass
+                    results.append({
+                        "device_id": idx,
+                        "name": name,
+                        "bus_id": raw_id,
+                        "is_physical": is_physical,
+                    })
+                    idx += 1
+        except Exception:
+            pass
 
-    # 2. DirectShow Software Filters (HKCR CLSID\{860BB310-5D01-11d0-BD3B-00A0C911CE86}\Instance)
+    # DirectShow Software Filters (HKCR CLSID\{860BB310-5D01-11d0-BD3B-00A0C911CE86}\Instance)
     dshow_path = r"CLSID\{860BB310-5D01-11d0-BD3B-00A0C911CE86}\Instance"
     try:
         with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, dshow_path) as k:
@@ -159,6 +350,9 @@ def inspect_windows_camera_devices() -> List[Dict[str, Any]]:
                         except Exception:
                             dpath = ""
 
+                        if any(r["name"] == fname for r in results):
+                            continue
+
                         dpath_lower = dpath.lower()
                         is_phys = bool(
                             dpath
@@ -172,10 +366,12 @@ def inspect_windows_camera_devices() -> List[Dict[str, Any]]:
                             is_phys = False
 
                         results.append({
+                            "device_id": idx,
                             "name": fname,
                             "bus_id": dpath or sub_name,
                             "is_physical": is_phys,
                         })
+                        idx += 1
                 except Exception:
                     pass
     except Exception:
@@ -228,120 +424,104 @@ def inspect_platform_cameras() -> List[Dict[str, Any]]:
 
 
 def detect_available_cameras(
-    max_devices: int = 4,
+    max_devices: int = 6,
     include_synthetic: bool = True,
     include_virtual: bool = False,
 ) -> List[CameraDeviceInfo]:
     """Probes available video devices up to max_devices with platform-optimal backends.
 
-    By default (include_virtual=False), only native physical cameras and Synthetic Feed
-    are returned. Virtual software devices (such as Phone Link, OBS Virtual Camera,
-    and NVIDIA Broadcast) are excluded from automated validation and test targets.
+    Discovers all legitimately connected cameras (integrated webcams, external USB cameras,
+    capture cards, etc.) across Windows, Linux, and macOS.
+    By default (include_virtual=False), native physical cameras and Synthetic Feed
+    are returned. When include_virtual=True, virtual software devices (such as Phone Link,
+    OBS Virtual Camera, and NVIDIA Broadcast) are also included.
     """
     devices: List[CameraDeviceInfo] = []
     preferred_backend = get_preferred_backend()
 
-    # 1. Query platform device metadata to identify physical vs virtual devices
+    # 1. Query platform device metadata to identify device names, IDs, and physical vs virtual status
     platform_meta = inspect_platform_cameras()
-    phys_meta = [m for m in platform_meta if m.get("is_physical")]
-    virt_meta = [m for m in platform_meta if not m.get("is_physical")]
+
+    meta_by_id: Dict[int, Dict[str, Any]] = {}
+    for i, m in enumerate(platform_meta):
+        did = m.get("device_id", i)
+        meta_by_id[did] = m
+
+    # Determine candidate indices to probe
+    if meta_by_id:
+        candidate_ids = [
+            did for did, m in meta_by_id.items()
+            if did < max_devices and (include_virtual or m.get("is_physical", True))
+        ]
+    else:
+        candidate_ids = list(range(max_devices))
+
+    candidate_ids.sort()
 
     consecutive_probe_failures = 0
+    for idx in candidate_ids:
+        cap = None
+        if preferred_backend != cv2.CAP_ANY:
+            try:
+                cap = cv2.VideoCapture(idx, preferred_backend)
+            except Exception:
+                cap = None
 
-    if phys_meta:
-        # Platform provided physical metadata: probe only physical device indices
-        num_to_probe = min(len(phys_meta), max_devices)
-        for idx in range(num_to_probe):
-            cap = None
-            if preferred_backend != cv2.CAP_ANY:
-                try:
-                    cap = cv2.VideoCapture(idx, preferred_backend)
-                except Exception:
-                    cap = None
+        if cap is None or not cap.isOpened():
+            try:
+                cap = cv2.VideoCapture(idx, cv2.CAP_ANY)
+            except Exception:
+                cap = None
 
-            if cap is None or not cap.isOpened():
-                try:
-                    cap = cv2.VideoCapture(idx, cv2.CAP_ANY)
-                except Exception:
-                    cap = None
+        opened = False
+        if cap is not None and cap.isOpened():
+            try:
+                ret, frame = cap.read()
+                if ret and frame is not None:
+                    opened = True
+                    meta = meta_by_id.get(idx)
+                    if meta:
+                        base_name = meta["name"]
+                        is_phys = meta.get("is_physical", True)
+                    else:
+                        base_name = f"Camera {idx}"
+                        is_phys = not any(kw in base_name.lower() for kw in VIRTUAL_CAMERA_KEYWORDS)
 
-            if cap is not None and cap.isOpened():
-                try:
-                    ret, frame = cap.read()
-                    if ret and frame is not None:
-                        base_name = phys_meta[idx]["name"]
-                        dname = base_name + (" (Default)" if idx == 0 else "")
-                        devices.append(
-                            CameraDeviceInfo(
-                                device_id=idx,
-                                name=dname,
-                                is_synthetic=False,
-                                is_physical=True,
-                            )
+                    dname = base_name + (" (Default)" if idx == 0 else "")
+                    devices.append(
+                        CameraDeviceInfo(
+                            device_id=idx,
+                            name=dname,
+                            is_synthetic=False,
+                            is_physical=is_phys,
                         )
-                except Exception:
-                    pass
-                finally:
-                    cap.release()
-    else:
-        # Fallback probe loop when platform metadata is unavailable
-        for idx in range(max_devices):
-            cap = None
-            if preferred_backend != cv2.CAP_ANY:
-                try:
-                    cap = cv2.VideoCapture(idx, preferred_backend)
-                except Exception:
-                    cap = None
+                    )
+            except Exception:
+                pass
+            finally:
+                cap.release()
 
-            if cap is None or not cap.isOpened():
-                try:
-                    cap = cv2.VideoCapture(idx, cv2.CAP_ANY)
-                except Exception:
-                    cap = None
+        if opened:
+            consecutive_probe_failures = 0
+        else:
+            consecutive_probe_failures += 1
+            if not meta_by_id and idx >= 1 and consecutive_probe_failures >= 2:
+                break
 
-            opened = False
-            if cap is not None and cap.isOpened():
-                try:
-                    ret, frame = cap.read()
-                    if ret and frame is not None:
-                        opened = True
-                        name = f"Camera {idx}" + (" (Default)" if idx == 0 else "")
-                        is_virt = any(kw in name.lower() for kw in VIRTUAL_CAMERA_KEYWORDS)
-                        if not is_virt or include_virtual:
-                            devices.append(
-                                CameraDeviceInfo(
-                                    device_id=idx,
-                                    name=name,
-                                    is_synthetic=False,
-                                    is_physical=not is_virt,
-                                )
-                            )
-                except Exception:
-                    pass
-                finally:
-                    cap.release()
-
-            if opened:
-                consecutive_probe_failures = 0
-            else:
-                consecutive_probe_failures += 1
-                if idx >= 1 and consecutive_probe_failures >= 2:
-                    break
-
-    # 2. If virtual cameras are explicitly requested, append detected virtual devices
-    if include_virtual and virt_meta:
-        start_virt_idx = len(devices)
-        for v_offset, v in enumerate(virt_meta):
-            vid = start_virt_idx + v_offset
-            vname = f"{v['name']} (Virtual)"
-            devices.append(
-                CameraDeviceInfo(
-                    device_id=vid,
-                    name=vname,
-                    is_synthetic=False,
-                    is_physical=False,
+    # 2. If virtual cameras are explicitly requested, append any unprobed virtual devices from metadata
+    if include_virtual and meta_by_id:
+        probed_ids = {d.device_id for d in devices if not d.is_synthetic}
+        for did, m in meta_by_id.items():
+            if did not in probed_ids and not m.get("is_physical", True):
+                vname = f"{m['name']} (Virtual)" if not m['name'].endswith("(Virtual)") else m['name']
+                devices.append(
+                    CameraDeviceInfo(
+                        device_id=did,
+                        name=vname,
+                        is_synthetic=False,
+                        is_physical=False,
+                    )
                 )
-            )
 
     # 3. If no physical camera was detected and synthetic is not requested, keep Camera 0 placeholder
     if not devices and not include_synthetic:
@@ -531,7 +711,7 @@ class CameraSelector:
             self.devices = list(available_devices)
         else:
             self.devices = detect_available_cameras(
-                max_devices=4,
+                max_devices=6,
                 include_synthetic=True,
                 include_virtual=include_virtual,
             )

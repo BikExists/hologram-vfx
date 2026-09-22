@@ -201,3 +201,153 @@ def test_camera_selector_select_by_id():
     assert "not found" in msg
 
     selector.release()
+
+
+def test_multiple_physical_cameras_enumerated_and_selectable(monkeypatch):
+    """Verifies that multiple physical cameras (e.g. integrated webcam and external USB camera)
+    are both discovered, retained as physical devices, and selectable."""
+    mock_meta = [
+        {"device_id": 0, "name": "Integrated Camera", "bus_id": r"\\?\acpi#...", "is_physical": True},
+        {"device_id": 1, "name": "USB FHD Webcam", "bus_id": r"\\?\usb#...", "is_physical": True},
+    ]
+    monkeypatch.setattr("src.camera.inspect_platform_cameras", lambda: mock_meta)
+
+    class MockCap:
+        def __init__(self, idx, *args, **kwargs):
+            self.idx = idx
+
+        def isOpened(self):
+            return True
+
+        def read(self):
+            return True, np.zeros((480, 640, 3), dtype=np.uint8)
+
+        def get(self, prop):
+            if prop == cv2.CAP_PROP_FRAME_WIDTH:
+                return 640.0
+            if prop == cv2.CAP_PROP_FRAME_HEIGHT:
+                return 480.0
+            if prop == cv2.CAP_PROP_FPS:
+                return 30.0
+            return 0.0
+
+        def set(self, prop, val):
+            return True
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr(cv2, "VideoCapture", lambda idx, *a, **k: MockCap(idx))
+
+    devices = detect_available_cameras(max_devices=6, include_synthetic=True, include_virtual=False)
+    # Both physical cameras should be detected
+    dev_names = [d.name for d in devices]
+    assert any("Integrated Camera" in name for name in dev_names)
+    assert any("USB FHD Webcam" in name for name in dev_names)
+    assert any("Synthetic Feed" in name for name in dev_names)
+
+    # Both physical devices must have is_physical=True
+    for d in devices:
+        if not d.is_synthetic:
+            assert d.is_physical is True
+
+    # Test CameraSelector switching between them
+    selector = CameraSelector(available_devices=devices)
+    assert selector.get_current_device().device_id == 0
+    ok, msg = selector.switch_to_next()
+    assert ok is True
+    assert selector.get_current_device().device_id == 1
+    selector.release()
+
+
+def test_physical_camera_at_non_zero_index_when_index_0_is_virtual(monkeypatch):
+    """Verifies that when index 0 is a virtual camera (e.g. Phone Link) and index 1 is a physical camera,
+    the physical camera at index 1 is discovered and selectable even when virtual cameras are excluded."""
+    mock_meta = [
+        {"device_id": 0, "name": "Phone Link Virtual Camera", "bus_id": r"SWD\VCAMDEVAPI", "is_physical": False},
+        {"device_id": 1, "name": "External USB Camera", "bus_id": r"\\?\usb#...", "is_physical": True},
+    ]
+    monkeypatch.setattr("src.camera.inspect_platform_cameras", lambda: mock_meta)
+
+    opened_indices = []
+
+    class MockCap:
+        def __init__(self, idx, *args, **kwargs):
+            self.idx = idx
+            opened_indices.append(idx)
+
+        def isOpened(self):
+            return True
+
+        def read(self):
+            return True, np.zeros((480, 640, 3), dtype=np.uint8)
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr(cv2, "VideoCapture", lambda idx, *a, **k: MockCap(idx))
+
+    # In default mode (include_virtual=False), virtual camera at idx 0 is not candidate for probing,
+    # but physical camera at idx 1 MUST be probed and found.
+    devices = detect_available_cameras(max_devices=6, include_synthetic=True, include_virtual=False)
+    dev_names = [d.name for d in devices]
+    assert not any("Phone Link" in name for name in dev_names)
+    assert any("External USB Camera" in name for name in dev_names)
+    assert any("Synthetic Feed" in name for name in dev_names)
+
+    phys_dev = next(d for d in devices if "External USB Camera" in d.name)
+    assert phys_dev.device_id == 1
+    assert phys_dev.is_physical is True
+    assert 1 in opened_indices
+
+
+def test_probe_failure_on_unavailable_physical_camera_handled_gracefully(monkeypatch):
+    """Verifies that if a physical camera candidate fails to open during probing,
+    it is gracefully omitted without raising exceptions or breaking other detections."""
+    mock_meta = [
+        {"device_id": 0, "name": "Working Camera", "bus_id": r"\\?\usb#1", "is_physical": True},
+        {"device_id": 1, "name": "Busy or Disconnected Camera", "bus_id": r"\\?\usb#2", "is_physical": True},
+    ]
+    monkeypatch.setattr("src.camera.inspect_platform_cameras", lambda: mock_meta)
+
+    class MockCap:
+        def __init__(self, idx, *args, **kwargs):
+            self.idx = idx
+
+        def isOpened(self):
+            return self.idx == 0
+
+        def read(self):
+            if self.idx == 0:
+                return True, np.zeros((480, 640, 3), dtype=np.uint8)
+            return False, None
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr(cv2, "VideoCapture", lambda idx, *a, **k: MockCap(idx))
+
+    devices = detect_available_cameras(max_devices=6, include_synthetic=True, include_virtual=False)
+    dev_names = [d.name for d in devices]
+    assert any("Working Camera" in name for name in dev_names)
+    assert not any("Busy" in name for name in dev_names)
+    assert any("Synthetic Feed" in name for name in dev_names)
+
+
+def test_directshow_com_enumeration_contract():
+    """Verifies that enumerate_windows_dshow_devices returns the expected structure on Windows."""
+    import sys
+    from src.camera import enumerate_windows_dshow_devices
+
+    devices = enumerate_windows_dshow_devices()
+    assert isinstance(devices, list)
+    if sys.platform.startswith("win"):
+        # On Windows host, verify dict structure if any DirectShow devices are present
+        for d in devices:
+            assert "device_id" in d
+            assert isinstance(d["device_id"], int)
+            assert "name" in d
+            assert isinstance(d["name"], str)
+            assert "is_physical" in d
+            assert isinstance(d["is_physical"], bool)
+

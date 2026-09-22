@@ -27,7 +27,7 @@ Double-clicking `HolographicVFX.exe` does nothing, flashes briefly, or closes in
 ### Causes & Solutions:
 1. **Running directly inside a ZIP file**:
    * **Cause**: Double-clicking `HolographicVFX.exe` inside Windows File Explorer without extracting prevents the executable from loading its bundled libraries and model weights in `_internal/`.
-   * **Solution**: Right-click `HolographicVFX-v1.0.0-Windows-x64.zip`, select **Extract All...**, and run the executable from the extracted folder.
+   * **Solution**: Right-click `HolographicVFX-v1.0.1-Windows-x64.zip`, select **Extract All...**, and run the executable from the extracted folder.
 2. **Missing Visual C++ Redistributable**:
    * **Cause**: On bare-bones or fresh Windows installations, the Microsoft Visual C++ 2015–2022 Runtime libraries may be missing.
    * **Solution**: Download and install the official Microsoft [vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe).
@@ -48,7 +48,7 @@ Holographic VFX is an open-source development project. The executable has not ye
 
 ### Solution:
 1. Click **More info** on the SmartScreen dialog.
-2. Verify that the application name says `HolographicVFX.exe` or `HolographicVFX-v1.0.0-Windows-x64-Setup.exe`.
+2. Verify that the application name says `HolographicVFX.exe` or `HolographicVFX-v1.0.1-Windows-x64-Setup.exe`.
 3. Click **Run anyway**.
 *(This is a one-time prompt; once confirmed, Windows remembers your preference for that install).*
 

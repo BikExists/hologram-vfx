@@ -2,7 +2,7 @@
 ; Targets: Windows x64 per-user installation (%LOCALAPPDATA%\Programs\HolographicVFX)
 
 #define MyAppName "Holographic VFX"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1"
 #define MyAppPublisher "BikExists"
 #define MyAppURL "https://github.com/BikExists/hologram-vfx"
 #define MyAppExeName "HolographicVFX.exe"
@@ -20,7 +20,7 @@ DisableProgramGroupPage=yes
 ; Per-user installation does not require administrative elevation
 PrivilegesRequired=lowest
 OutputDir=..\dist
-OutputBaseFilename=HolographicVFX-v1.0.0-Windows-x64-Setup
+OutputBaseFilename=HolographicVFX-v1.0.1-Windows-x64-Setup
 SetupIconFile=..\assets\icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName}
