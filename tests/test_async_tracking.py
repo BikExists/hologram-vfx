@@ -240,3 +240,64 @@ def test_app_integration_with_sync_tracking():
     finally:
         app.close()
         assert not app.running
+
+
+def test_async_tracker_worker_resilience_to_exceptions():
+    """Verify that transient inference exceptions do not crash background worker thread."""
+    tracker = AsyncHandTracker(sync_mode=False)
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+
+    try:
+        assert tracker._worker_thread is not None
+        assert tracker._worker_thread.is_alive()
+
+        # Submit a normal frame
+        tracker.submit_frame(frame, timestamp=time.perf_counter())
+        time.sleep(0.1)
+        assert tracker.total_processed_frames >= 1
+
+        # Patch internal tracker to simulate transient exception
+        original_process = tracker._tracker.process_frame_multi
+
+        def raise_glitch(f, timestamp=None):
+            raise RuntimeError("Simulated MediaPipe internal graph exception")
+
+        tracker._tracker.process_frame_multi = raise_glitch
+
+        # Submit frame that fails inference
+        tracker.submit_frame(frame, timestamp=time.perf_counter())
+        time.sleep(0.15)
+
+        # Worker thread must REMAIN ALIVE
+        assert tracker._worker_thread.is_alive(), "Worker thread died from unhandled exception!"
+        res = tracker.get_latest_result()
+        assert res.hands == []
+
+        # Restore original tracking function and verify self-healing recovery
+        tracker._tracker.process_frame_multi = original_process
+        tracker.submit_frame(frame, timestamp=time.perf_counter())
+        time.sleep(0.15)
+
+        assert tracker._worker_thread.is_alive()
+        assert tracker.total_processed_frames >= 3
+    finally:
+        tracker.close()
+
+
+def test_async_tracker_sync_resilience_to_exceptions():
+    """Verify that sync mode handles tracker exceptions gracefully without unhandled crashes."""
+    tracker = AsyncHandTracker(sync_mode=True)
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+
+    def raise_glitch(f, timestamp=None):
+        raise RuntimeError("Simulated sync error")
+
+    tracker._tracker.process_frame_multi = raise_glitch
+
+    try:
+        tracker.submit_frame(frame, timestamp=time.perf_counter())
+        res = tracker.get_latest_result()
+        assert res.hands == []
+    finally:
+        tracker.close()
+

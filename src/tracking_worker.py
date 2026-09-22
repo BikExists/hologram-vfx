@@ -85,6 +85,7 @@ class AsyncHandTracker:
         self._worker_proc_time_ms: float = 0.0
         self._last_worker_time: float = 0.0
         self._last_landmark_age_ms: float = 0.0
+        self._last_error_log_time: float = 0.0
 
         # Latest published result
         self._latest_result: TrackingResult = TrackingResult(
@@ -371,7 +372,17 @@ class AsyncHandTracker:
     def _process_sync(self, frame_bgr: np.ndarray, timestamp: float) -> None:
         """Synchronous execution path for tests and benchmark baseline."""
         t_start = time.perf_counter()
-        hands = self._tracker.process_frame_multi(frame_bgr, timestamp=timestamp)
+        try:
+            hands = self._tracker.process_frame_multi(frame_bgr, timestamp=timestamp)
+            primary_hand = self._tracker.last_valid_hand
+        except Exception as e:
+            now_err = time.perf_counter()
+            if now_err - self._last_error_log_time > 2.0:
+                import sys
+                print(f"[Warning] Hand tracking error (sync): {e}", file=sys.stderr)
+                self._last_error_log_time = now_err
+            hands = []
+            primary_hand = None
         t_end = time.perf_counter()
         proc_ms = (t_end - t_start) * 1000.0
 
@@ -391,7 +402,7 @@ class AsyncHandTracker:
 
             self._latest_result = TrackingResult(
                 hands=hands,
-                primary_hand=self._tracker.last_valid_hand,
+                primary_hand=primary_hand,
                 timestamp=t_end,
                 capture_timestamp=timestamp,
                 frame_id=self._total_submitted,
@@ -424,13 +435,21 @@ class AsyncHandTracker:
             if frame is None:
                 continue
 
-            # Run MediaPipe CPU inference outside lock
+            # Run MediaPipe CPU inference outside lock with fault tolerance
             t_start = time.perf_counter()
-            hands = self._tracker.process_frame_multi(frame, timestamp=cap_ts)
+            try:
+                hands = self._tracker.process_frame_multi(frame, timestamp=cap_ts)
+                primary_hand = self._tracker.last_valid_hand
+            except Exception as e:
+                now_err = time.perf_counter()
+                if now_err - self._last_error_log_time > 2.0:
+                    import sys
+                    print(f"[Warning] Hand tracking worker error: {e}", file=sys.stderr)
+                    self._last_error_log_time = now_err
+                hands = []
+                primary_hand = None
             t_end = time.perf_counter()
             proc_ms = (t_end - t_start) * 1000.0
-
-            primary_hand = self._tracker.last_valid_hand
 
             # Atomically publish new tracking result under lock
             with self._lock:

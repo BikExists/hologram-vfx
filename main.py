@@ -9,12 +9,16 @@ Usage:
 """
 
 import argparse
+import datetime
+from pathlib import Path
 import sys
 import time
+import traceback
 import cv2
 
 from src.app import HolographicVFXApp
 from src.camera import detect_available_cameras
+from src.paths import write_crash_log, get_crash_log_path
 from src.vfx.color_themes import THEME_KEYS
 
 
@@ -94,6 +98,50 @@ def parse_args():
     return parser.parse_args()
 
 
+def _handle_fatal_exception(exc: Exception, headless: bool = False) -> None:
+    """Logs fatal exceptions to crash_log.txt and displays a native error dialog on Windows."""
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    tb = traceback.format_exc()
+
+    crash_report = (
+        "============================================================\n"
+        "  Holographic VFX - Fatal Application Crash Report\n"
+        "============================================================\n"
+        f"Timestamp : {now_str}\n"
+        f"Platform  : {sys.platform} (Python {sys.version.split()[0]})\n"
+        f"Error Type: {type(exc).__name__}\n"
+        f"Message   : {exc}\n"
+        "------------------------------------------------------------\n"
+        "Traceback:\n"
+        f"{tb}\n"
+        "============================================================\n"
+    )
+
+    # Output to stderr for console execution
+    print(f"\n[Fatal Error] {type(exc).__name__}: {exc}", file=sys.stderr)
+    print(tb, file=sys.stderr)
+
+    # Persist report to user capture directory
+    saved_log_path = write_crash_log(crash_report)
+    log_location_str = str(saved_log_path) if saved_log_path else "Pictures/HolographicVFX/crash_log.txt"
+
+    # Display native GUI error message box on Windows when not headless
+    if sys.platform == "win32" and not headless:
+        try:
+            import ctypes
+            error_title = "Holographic VFX - Application Error"
+            error_message = (
+                f"Holographic VFX encountered an unexpected error:\n\n"
+                f"{type(exc).__name__}: {exc}\n\n"
+                f"A diagnostic crash report has been saved to:\n{log_location_str}\n\n"
+                f"Please check the log or report this issue if it persists."
+            )
+            # MB_OK (0x00) | MB_ICONERROR (0x10) | MB_SYSTEMMODAL (0x1000)
+            ctypes.windll.user32.MessageBoxW(0, error_message, error_title, 0x10 | 0x1000)
+        except Exception:
+            pass
+
+
 def main():
     args = parse_args()
 
@@ -141,81 +189,90 @@ def main():
     print("   [Q / ESC]   : Close menu / Quit application")
     print("=" * 60)
 
-    app = HolographicVFXApp(
-        camera_id=args.camera_id,
-        width=args.width,
-        height=args.height,
-        theme_name=args.theme,
-        synthetic_mode=args.synthetic,
-        headless=args.headless,
-        include_virtual=args.include_virtual,
-        skip_welcome=args.skip_welcome or (args.benchmark is not None),
-        sync_tracking=args.sync_tracking,
-    )
-
-    if args.benchmark:
-        mode_str = "Synchronous" if args.sync_tracking else "Asynchronous Decoupled"
-        print(f"[Benchmark] Running {args.benchmark} frames ({mode_str} Tracking)...")
-        if not app.camera_selector.open():
-            print("[Benchmark] Initial camera open failed, using fallback...")
-
-        start_t = time.perf_counter()
-        latencies = []
-        tracking_fps_list = []
-        landmark_ages = []
-        dropped_frames = 0
-        sample_frame = None
-
-        for i in range(args.benchmark):
-            f_start = time.perf_counter()
-            ret, frame, telemetry = app.step_frame()
-            f_dur = time.perf_counter() - f_start
-            latencies.append(f_dur * 1000.0)
-            if ret and frame is not None:
-                sample_frame = frame
-                if "tracking_fps" in telemetry and telemetry["tracking_fps"] > 0:
-                    tracking_fps_list.append(telemetry["tracking_fps"])
-                if "landmark_age_ms" in telemetry and telemetry["landmark_age_ms"] > 0:
-                    landmark_ages.append(telemetry["landmark_age_ms"])
-                dropped_frames = telemetry.get("tracking_dropped_frames", 0)
-
-        total_t = time.perf_counter() - start_t
-        app.close()
-
-        avg_lat = sum(latencies) / len(latencies)
-        avg_fps = len(latencies) / total_t
-        min_lat = min(latencies)
-        max_lat = max(latencies)
-
-        print("\n--- Benchmark Results ---")
-        print(f" Total Frames       : {len(latencies)}")
-        print(f" Total Time         : {total_t:.2f} s")
-        print(f" Render FPS         : {avg_fps:.1f} FPS")
-        print(f" Avg Frame Latency  : {avg_lat:.2f} ms")
-        print(f" Min Latency        : {min_lat:.2f} ms")
-        print(f" Max Latency        : {max_lat:.2f} ms")
-        print(f" Tracking Mode      : {mode_str}")
-        if tracking_fps_list:
-            avg_trk_fps = sum(tracking_fps_list) / len(tracking_fps_list)
-            print(f" Tracking Worker FPS: {avg_trk_fps:.1f} FPS")
-        if landmark_ages:
-            avg_age = sum(landmark_ages) / len(landmark_ages)
-            print(f" Avg Landmark Age   : {avg_age:.2f} ms")
-        if not args.sync_tracking:
-            print(f" Dropped Frames     : {dropped_frames}")
-        print("-------------------------")
-
-        if args.save_sample and sample_frame is not None:
-            cv2.imwrite(args.save_sample, sample_frame)
-            print(f"[Info] Saved sample frame to: {args.save_sample}")
-
-        sys.exit(0)
-
+    app = None
     try:
+        app = HolographicVFXApp(
+            camera_id=args.camera_id,
+            width=args.width,
+            height=args.height,
+            theme_name=args.theme,
+            synthetic_mode=args.synthetic,
+            headless=args.headless,
+            include_virtual=args.include_virtual,
+            skip_welcome=args.skip_welcome or (args.benchmark is not None),
+            sync_tracking=args.sync_tracking,
+        )
+
+        if args.benchmark:
+            mode_str = "Synchronous" if args.sync_tracking else "Asynchronous Decoupled"
+            print(f"[Benchmark] Running {args.benchmark} frames ({mode_str} Tracking)...")
+            if not app.camera_selector.open():
+                print("[Benchmark] Initial camera open failed, using fallback...")
+
+            start_t = time.perf_counter()
+            latencies = []
+            tracking_fps_list = []
+            landmark_ages = []
+            dropped_frames = 0
+            sample_frame = None
+
+            for i in range(args.benchmark):
+                f_start = time.perf_counter()
+                ret, frame, telemetry = app.step_frame()
+                f_dur = time.perf_counter() - f_start
+                latencies.append(f_dur * 1000.0)
+                if ret and frame is not None:
+                    sample_frame = frame
+                    if "tracking_fps" in telemetry and telemetry["tracking_fps"] > 0:
+                        tracking_fps_list.append(telemetry["tracking_fps"])
+                    if "landmark_age_ms" in telemetry and telemetry["landmark_age_ms"] > 0:
+                        landmark_ages.append(telemetry["landmark_age_ms"])
+                    dropped_frames = telemetry.get("tracking_dropped_frames", 0)
+
+            total_t = time.perf_counter() - start_t
+            app.close()
+
+            avg_lat = sum(latencies) / len(latencies)
+            avg_fps = len(latencies) / total_t
+            min_lat = min(latencies)
+            max_lat = max(latencies)
+
+            print("\n--- Benchmark Results ---")
+            print(f" Total Frames       : {len(latencies)}")
+            print(f" Total Time         : {total_t:.2f} s")
+            print(f" Render FPS         : {avg_fps:.1f} FPS")
+            print(f" Avg Frame Latency  : {avg_lat:.2f} ms")
+            print(f" Min Latency        : {min_lat:.2f} ms")
+            print(f" Max Latency        : {max_lat:.2f} ms")
+            print(f" Tracking Mode      : {mode_str}")
+            if tracking_fps_list:
+                avg_trk_fps = sum(tracking_fps_list) / len(tracking_fps_list)
+                print(f" Tracking Worker FPS: {avg_trk_fps:.1f} FPS")
+            if landmark_ages:
+                avg_age = sum(landmark_ages) / len(landmark_ages)
+                print(f" Avg Landmark Age   : {avg_age:.2f} ms")
+            if not args.sync_tracking:
+                print(f" Dropped Frames     : {dropped_frames}")
+            print("-------------------------")
+
+            if args.save_sample and sample_frame is not None:
+                sample_path = Path(args.save_sample)
+                sample_path.parent.mkdir(parents=True, exist_ok=True)
+                ok, enc = cv2.imencode(".png", sample_frame)
+                if ok and enc is not None:
+                    sample_path.write_bytes(enc.tobytes())
+                    print(f"[Info] Saved sample frame to: {sample_path.resolve()}")
+
+            sys.exit(0)
+
         app.run()
     except Exception as e:
-        print(f"[Fatal Error] Application encountered an error: {e}", file=sys.stderr)
-        app.close()
+        _handle_fatal_exception(e, headless=args.headless)
+        if app is not None:
+            try:
+                app.close()
+            except Exception:
+                pass
         sys.exit(1)
 
 
